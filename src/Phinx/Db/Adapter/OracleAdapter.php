@@ -89,7 +89,7 @@ class OracleAdapter extends MysqlAdapter implements AdapterInterface
     {
         if ($this->connection) {
             $this->connection->close();
-        }        
+        }
         $this->connection = null;
     }
 
@@ -166,7 +166,7 @@ class OracleAdapter extends MysqlAdapter implements AdapterInterface
     /**
      * {@inheritdoc}
      */
-    public function createTable(Table $table, array $columns=[], array $indexes=[])
+    public function createTable(Table $table, array $columns = [], array $indexes = [])
     {
         $options = $table->getOptions();
 
@@ -1036,7 +1036,7 @@ SQL;
     /**
      * {@inheritdoc}
      */
-    public function bulkinsert(Table $table, $rows) 
+    public function bulkinsert(Table $table, $rows)
     {
         $sql = "INSERT ALL ";
 
