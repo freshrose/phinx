@@ -40,6 +40,14 @@
         <!-- SQLite -->
         <env name="TESTS_PHINX_DB_ADAPTER_SQLITE_ENABLED" value="true" />
         <env name="TESTS_PHINX_DB_ADAPTER_SQLITE_DATABASE" value="phinx_testing" />
+        <!-- Oracle -->
+        <env name="TESTS_PHINX_DB_ADAPTER_ORACLE_ENABLED" value="true"/>
+        <env name="TESTS_PHINX_DB_ADAPTER_ORACLE_HOST" value="localhost"/>
+        <env name="TESTS_PHINX_DB_ADAPTER_ORACLE_SID" value="sid/service"/>
+        <env name="TESTS_PHINX_DB_ADAPTER_ORACLE_USERNAME" value="username/schema"/>
+        <env name="TESTS_PHINX_DB_ADAPTER_ORACLE_PASSWORD" value="pass"/>
+        <env name="TESTS_PHINX_DB_ADAPTER_ORACLE_PORT" value="1521"/>
+		<env name="TESTS_PHINX_DB_ADAPTER_ORACLE_CONNECTION_STRING" value="localhost"/>
     </php>
 
     <testsuite name="Phinx Test Suite">
