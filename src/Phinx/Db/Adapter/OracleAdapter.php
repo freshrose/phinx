@@ -150,7 +150,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     public function quoteSchemaTableName($schemaTableName)
     {
         $parts = $this->getSchemaName($schemaTableName);
-        if (is_null($parts['schema'])) {
+        if ($parts['schema'] === '') {
             $result = $this->quoteTableName($parts['table']);
         } else {
             $result = $this->quoteSchemaName($parts['schema']) . '.' . $this->quoteTableName($parts['table']);
@@ -192,19 +192,15 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $tableFullName = $this->getSchemaName($tableName);
         $tableSearchName = $tableFullName['schema'] . $tableFullName['table'];
 
-        //var_dump($tableSearchName);die;
-
         $result = $this->fetchRow(
             sprintf(
                 'SELECT count(*) as count FROM ALL_TABLES WHERE owner || table_name = \'%s\'',
                 $tableSearchName
             )
         );
-        //var_dump($result['COUNT'] > 0);die;
         return $result['COUNT'] > 0;
     }
 
-    // TODO !!!!!!
     /**
      * Creates new table.
      *
@@ -213,7 +209,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     public function createTable(Table $table, array $columns = [], array $indexes = [])
     {
         $options = $table->getOptions();
-        //$parts = $this->getSchemaName($table->getName());
+        $parts = $this->getSchemaName($table->getName());
 
         // Add the default primary key
         if (!isset($options['id']) || (isset($options['id']) && $options['id'] === true)) {
@@ -265,39 +261,40 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         }
 
         $sql .= ')';
+        $this->execute($sql);
 
         // process column comments
         if (!empty($this->columnsWithComments)) {
             foreach ($this->columnsWithComments as $column) {
-                $sql .= $this->getColumnCommentSqlDefinition($column, $table->getName());
-            }
-        }
-
-        // TODO - indexes!!!
-        // set the indexes
-        if (!empty($indexes)) {
-            foreach ($indexes as $index) {
-                $sql .= $this->getIndexSqlDefinition($index, $table->getName());
+                $sql = $this->getColumnCommentSqlDefinition($column, $table->getName());
+                $this->execute($sql);
             }
         }
 
         // execute the sql
         //var_dump($sql);//die;
-        $this->execute($sql);
 
-        // TODO - table comments
+        // set the indexes
+        if (!empty($indexes)) {
+            foreach ($indexes as $index) {
+                $sql = $this->getIndexSqlDefinition($index, $table->getName());
+                $this->execute($sql);
+            }
+        }
+
+        // TODO - build test
         // process table comments
         if (isset($options['comment'])) {
             $sql = sprintf(
                 'COMMENT ON TABLE %s IS %s',
-                $this->quoteTableName($table->getName()),
+                $this->quoteSchemaTableName($table->getName()),
                 $this->getConnection()->quote($options['comment'])
             );
             $this->execute($sql);
         }
     }
 
-    // TODO - build test
+    // OK - PASSED
     /**
      * {@inheritdoc}
      */
@@ -321,7 +318,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $this->execute(sprintf('DROP TABLE %s', $this->quoteSchemaTableName($tableName)));
     }
 
-    // TODO - check
+    // OK - PASSED
     /**
      * {@inheritdoc}
      */
@@ -333,8 +330,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         return new AlterInstructions([], [$sql]);
     }
 
-    // TODO - build test
-    // TODO - check
+    // OK - PASSED
     /**
      * {@inheritdoc}
      */
@@ -348,7 +344,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $this->execute($sql);
     }
 
-    // TODO ... 1st step done ... do test
+    // OK - PASSED
     /**
      * {@inheritdoc}
      */
@@ -358,60 +354,51 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $schemaTableName = $parts['schema'] . $parts['table'];
         $columns = [];
         $sql = sprintf(
-            "SELECT column_name FROM ALL_TAB_COLUMNS WHERE owner || table_name = '%s'",
+            "select TABLE_NAME \"table_name\", COLUMN_NAME \"name\", DATA_TYPE \"type\", NULLABLE \"null\", 
+            DATA_DEFAULT \"default\", DATA_LENGTH \"char_length\", DATA_PRECISION \"precision\", DATA_SCALE \"scale\", 
+            COLUMN_ID \"ordinal_position\" FROM ALL_TAB_COLUMNS WHERE owner || table_name = '%s'",
             $schemaTableName
         );
-        $columnsInfo = $this->fetchAll($sql);
 
-        foreach ($columnsInfo as $columnInfo) {
-            $isUserDefined = strtoupper(trim($columnInfo['data_type'])) === 'USER-DEFINED';
-
-            if ($isUserDefined) {
-                $columnType = Literal::from($columnInfo['udt_name']);
-            } else {
-                $columnType = $this->getPhinxType($columnInfo['data_type']);
+        $rows = $this->fetchAll($sql);
+        foreach ($rows as $columnInfo) {
+            $default = null;
+            if (trim($columnInfo['default']) != 'NULL') {
+                $default = trim($columnInfo['default']);
             }
-
-            // If the default value begins with a ' or looks like a function mark it as literal
-            if (isset($columnInfo['column_default'][0]) && $columnInfo['column_default'][0] === "'") {
-                if (preg_match('/^\'(.*)\'::[^:]+$/', $columnInfo['column_default'], $match)) {
-                    // '' and \' are replaced with a single '
-                    $columnDefault = preg_replace('/[\'\\\\]\'/', "'", $match[1]);
-                } else {
-                    $columnDefault = Literal::from($columnInfo['column_default']);
-                }
-            } elseif (preg_match('/^\D[a-z_\d]*\(.*\)$/', $columnInfo['column_default'])) {
-                $columnDefault = Literal::from($columnInfo['column_default']);
-            } else {
-                $columnDefault = $columnInfo['column_default'];
-            }
-
             $column = new Column();
-            $column->setName($columnInfo['column_name'])
-                ->setType($columnType)
-                ->setNull($columnInfo['is_nullable'] === 'YES')
-                ->setDefault($columnDefault)
-                ->setIdentity($columnInfo['is_identity'] === 'YES')
-                ->setScale($columnInfo['numeric_scale']);
-
-            if (preg_match('/\bwith time zone$/', $columnInfo['data_type'])) {
-                $column->setTimezone(true);
+            $column->setName($columnInfo['name'])
+                ->setType($this->getPhinxType($columnInfo['type'], $columnInfo['precision'], $columnInfo['scale']))
+                ->setNull($columnInfo['null'] !== 'N')
+                ->setDefault($default)
+                ->setComment($this->getColumnComment($columnInfo['table_name'], $columnInfo['name']));
+            if (!empty($columnInfo['char_length'])) {
+                $column->setLimit($columnInfo['char_length']);
             }
-
-            if (isset($columnInfo['character_maximum_length'])) {
-                $column->setLimit($columnInfo['character_maximum_length']);
-            }
-
-            if (in_array($columnType, [static::PHINX_TYPE_TIME, static::PHINX_TYPE_DATETIME])) {
-                $column->setPrecision($columnInfo['datetime_precision']);
-            } else {
-                $column->setPrecision($columnInfo['numeric_precision']);
-            }
-
-            $columns[] = $column;
+            $columns[$columnInfo['name']] = $column;
         }
-
         return $columns;
+    }
+    // OK - PASSED
+    /**
+     * Get the comment for a column
+     *
+     * @param string $tableName Table Name
+     * @param string $columnName Column Name
+     *
+     * @return string
+     */
+    public function getColumnComment($tableName, $columnName)
+    {
+        $parts = $this->getSchemaName($tableName);
+        $schemaTableName = $parts['schema'] . $parts['table'];
+        $sql = sprintf(
+            "select COMMENTS from ALL_COL_COMMENTS WHERE COLUMN_NAME = '%s' and OWNER || TABLE_NAME = '%s'",
+            $columnName,
+            $schemaTableName
+        );
+        $row = $this->fetchRow($sql);
+        return $row['COMMENTS'];
     }
 
     // OK - PASSED
@@ -431,44 +418,30 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         return $result['COUNT'] > 0;
     }
 
-    // TODO - CHECK hardly
+    // OK - PASSED
     /**
      * {@inheritdoc}
      */
     protected function getAddColumnInstructions(Table $table, Column $column)
     {
-        $instructions = new AlterInstructions();
-        $instructions->addAlter(sprintf(
-            'ADD %s %s',
+        $instructions = sprintf(
+            'ALTER TABLE %s ADD %s %s',
+            $this->quoteSchemaTableName($table->getName()),
             $this->quoteColumnName($column->getName()),
             $this->getColumnSqlDefinition($column)
-        ));
+        );
 
-        if ($column->getComment()) {
-            $instructions->addPostStep($this->getColumnCommentSqlDefinition($column, $table->getName()));
-        }
-
-        return $instructions;
+        return new AlterInstructions([], [$instructions]);
     }
 
-    // TODO - CHECK superhardly
+    // OK - PASSED
     /**
      * {@inheritdoc}
      */
     protected function getRenameColumnInstructions($tableName, $columnName, $newColumnName)
     {
-        $parts = $this->getSchemaName($tableName);
-        $sql = sprintf(
-            "SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END AS column_exists
-             FROM information_schema.columns
-             WHERE table_schema = %s AND table_name = %s AND column_name = %s",
-            $this->getConnection()->quote($parts['schema']),
-            $this->getConnection()->quote($parts['table']),
-            $this->getConnection()->quote($columnName)
-        );
-
-        $result = $this->fetchRow($sql);
-        if (!(bool)$result['column_exists']) {
+        $result = $this->hasColumn($tableName, $columnName);
+        if (!(bool)$result) {
             throw new \InvalidArgumentException("The specified column does not exist: $columnName");
         }
 
@@ -476,7 +449,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $instructions->addPostStep(
             sprintf(
                 'ALTER TABLE %s RENAME COLUMN %s TO %s',
-                $tableName,
+                $this->quoteSchematableName($tableName),
                 $this->quoteColumnName($columnName),
                 $this->quoteColumnName($newColumnName)
             )
@@ -485,75 +458,25 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         return $instructions;
     }
 
-    // TODO - CHECK wtf?
+    // OK - PASSED
     /**
      * {@inheritdoc}
      */
     protected function getChangeColumnInstructions($tableName, $columnName, Column $newColumn)
     {
-        $instructions = new AlterInstructions();
-
-        $sql = sprintf(
-            'ALTER COLUMN %s TYPE %s',
-            $this->quoteColumnName($columnName),
+        $alter = sprintf(
+            'ALTER TABLE %s MODIFY(%s %s)',
+            $this->quoteSchemaTableName($tableName),
+            $this->quoteColumnName($newColumn->getName()),
             $this->getColumnSqlDefinition($newColumn)
         );
-        //
-        //NULL and DEFAULT cannot be set while changing column type
-        $sql = preg_replace('/ NOT NULL/', '', $sql);
-        $sql = preg_replace('/ NULL/', '', $sql);
-        //If it is set, DEFAULT is the last definition
-        $sql = preg_replace('/DEFAULT .*/', '', $sql);
+        $sql = $this->getColumnCommentSqlDefinition($newColumn, $tableName);
+        $this->execute($sql);
 
-        $instructions->addAlter($sql);
-
-        // process null
-        $sql = sprintf(
-            'ALTER COLUMN %s',
-            $this->quoteColumnName($columnName)
-        );
-
-        if ($newColumn->isNull()) {
-            $sql .= ' DROP NOT NULL';
-        } else {
-            $sql .= ' SET NOT NULL';
-        }
-
-        $instructions->addAlter($sql);
-
-        if (!is_null($newColumn->getDefault())) {
-            $instructions->addAlter(sprintf(
-                'ALTER COLUMN %s SET %s',
-                $this->quoteColumnName($columnName),
-                $this->getDefaultValueDefinition($newColumn->getDefault(), $newColumn->getType())
-            ));
-        } else {
-            //drop default
-            $instructions->addAlter(sprintf(
-                'ALTER COLUMN %s DROP DEFAULT',
-                $this->quoteColumnName($columnName)
-            ));
-        }
-
-        // rename column
-        if ($columnName !== $newColumn->getName()) {
-            $instructions->addPostStep(sprintf(
-                'ALTER TABLE %s RENAME COLUMN %s TO %s',
-                $this->quoteSchemaTableName($tableName),
-                $this->quoteColumnName($columnName),
-                $this->quoteColumnName($newColumn->getName())
-            ));
-        }
-
-        // change column comment if needed
-        if ($newColumn->getComment()) {
-            $instructions->addPostStep($this->getColumnCommentSqlDefinition($newColumn, $tableName));
-        }
-
-        return $instructions;
+        return new AlterInstructions([], [$alter]);
     }
 
-    // TODO - CHECK
+    // OK - PASSED
     /**
      * {@inheritdoc}
      */
@@ -565,10 +488,12 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             $this->quoteColumnName($columnName)
         );
 
-        return new AlterInstructions([$alter]);
+        return new AlterInstructions([], [$alter]);
     }
 
-    // TODO - CHECK !!!!!!!!!!!!!
+    // --------------------------------------------------- START work
+
+    // OK - PASSED
     /**
      * Get an array of indexes from a particular table.
      *
@@ -578,45 +503,25 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     protected function getIndexes($tableName)
     {
         $parts = $this->getSchemaName($tableName);
+        $fullTableName = $parts['schema'] . $parts['table'];
 
         $indexes = [];
-        $sql = sprintf(
-            "SELECT
-                i.relname AS index_name,
-                a.attname AS column_name
-            FROM
-                pg_class t,
-                pg_class i,
-                pg_index ix,
-                pg_attribute a,
-                pg_namespace nsp
-            WHERE
-                t.oid = ix.indrelid
-                AND i.oid = ix.indexrelid
-                AND a.attrelid = t.oid
-                AND a.attnum = ANY(ix.indkey)
-                AND t.relnamespace = nsp.oid
-                AND nsp.nspname = %s
-                AND t.relkind = 'r'
-                AND t.relname = %s
-            ORDER BY
-                t.relname,
-                i.relname",
-            $this->getConnection()->quote($parts['schema']),
-            $this->getConnection()->quote($parts['table'])
-        );
+        $sql = sprintf("SELECT
+                  INDEX_NAME, COLUMN_NAME FROM ALL_IND_COLUMNS
+                  WHERE TABLE_OWNER || TABLE_NAME = '%s' ORDER BY TABLE_NAME, INDEX_NAME",
+            $fullTableName);
         $rows = $this->fetchAll($sql);
         foreach ($rows as $row) {
-            if (!isset($indexes[$row['index_name']])) {
-                $indexes[$row['index_name']] = ['columns' => []];
+            if (!isset($indexes[$row['INDEX_NAME']])) {
+                $indexes[$row['INDEX_NAME']] = ['columns' => []];
             }
-            $indexes[$row['index_name']]['columns'][] = $row['column_name'];
+            $indexes[$row['INDEX_NAME']]['columns'][] = $row['COLUMN_NAME'];
         }
 
         return $indexes;
     }
 
-    // TODO - CHECK !!!!!!!!!!
+    // OK - PASSED
     /**
      * {@inheritdoc}
      */
@@ -635,7 +540,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         return false;
     }
 
-    // TODO - CHECK !!!!!!!!!!!!!!!!!!!!!!!!
+    // OK - PASSED
     /**
      * {@inheritdoc}
      */
@@ -651,19 +556,18 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         return false;
     }
 
-    // TODO - CHECK !!!!!!!!!!!!!!!!!
+    // OK - PASSED
     /**
      * {@inheritdoc}
      */
     protected function getAddIndexInstructions(Table $table, Index $index)
     {
-        $instructions = new AlterInstructions();
-        $instructions->addPostStep($this->getIndexSqlDefinition($index, $table->getName()));
+        $alter = $this->getIndexSqlDefinition($index, $table->getName());
 
-        return $instructions;
+        return new AlterInstructions([], [$alter]);
     }
 
-    // TODO - CHECK !!!!!!!!!!!!!!!!!!
+    // OK - PASSED
     /**
      * {@inheritdoc}
      */
@@ -680,7 +584,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             $a = array_diff($columns, $index['columns']);
             if (empty($a)) {
                 return new AlterInstructions([], [sprintf(
-                    'DROP INDEX IF EXISTS %s',
+                    'DROP INDEX %s',
                     '"' . ($parts['schema'] . '".' . $this->quoteColumnName($indexName))
                 )]);
             }
@@ -692,7 +596,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         ));
     }
 
-    // TODO - CHECK !!!!!!!!!!!!!!!!!!!!!
+    // OK - PASSED
     /**
      * {@inheritdoc}
      */
@@ -701,14 +605,14 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $parts = $this->getSchemaName($tableName);
 
         $sql = sprintf(
-            'DROP INDEX IF EXISTS %s',
+            'DROP INDEX %s',
             '"' . ($parts['schema'] . '".' . $this->quoteColumnName($indexName))
         );
 
         return new AlterInstructions([], [$sql]);
     }
 
-    // TODO - CHECK !!!!!!!!!!!!!!!!!!!
+    // OK - PASSED
     /**
      * {@inheritdoc}
      */
@@ -736,7 +640,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         }
     }
 
-    // TODO - CHECK !!!!!!!!!!!!!!!!!!
+    // OK - PASSED
     /**
      * Get an array of foreign keys from a particular table.
      *
@@ -746,61 +650,63 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     protected function getForeignKeys($tableName)
     {
         $parts = $this->getSchemaName($tableName);
+        $fullTableName = $parts['schema'] . $parts['table'];
         $foreignKeys = [];
         $rows = $this->fetchAll(sprintf(
-            "SELECT
-                    tc.constraint_name,
-                    tc.table_name, kcu.column_name,
-                    ccu.table_name AS referenced_table_name,
-                    ccu.column_name AS referenced_column_name
-                FROM
-                    information_schema.table_constraints AS tc
-                    JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name
-                    JOIN information_schema.constraint_column_usage AS ccu ON ccu.constraint_name = tc.constraint_name
-                WHERE constraint_type = 'FOREIGN KEY' AND tc.table_schema = %s AND tc.table_name = %s
-                ORDER BY kcu.position_in_unique_constraint",
-            $this->getConnection()->quote($parts['schema']),
-            $this->getConnection()->quote($parts['table'])
+            "SELECT a.constraint_name, a.owner, a.table_name, a.column_name,  
+						/* referenced values */
+					    c_pk.constraint_name AS referenced_constraint_name,
+						c.r_owner AS referenced_owner,
+						c_pk.table_name  AS referenced_table_name,
+						b.column_name  AS referenced_column_name			 
+  					FROM all_cons_columns a
+ 					 JOIN all_constraints c ON a.owner = c.owner AND a.constraint_name = c.constraint_name
+ 					 JOIN all_constraints c_pk ON c.r_owner = c_pk.owner AND c.r_constraint_name = c_pk.constraint_name
+ 					 JOIN all_cons_columns b ON b.owner = c_pk.owner AND b.constraint_name = c_pk.constraint_name
+ 					WHERE c.constraint_type = 'R' /* foreign key oracle code */
+ 					AND a.owner || a.table_name = '%s'",
+            $fullTableName
         ));
         foreach ($rows as $row) {
-            $foreignKeys[$row['constraint_name']]['table'] = $row['table_name'];
-            $foreignKeys[$row['constraint_name']]['columns'][] = $row['column_name'];
-            $foreignKeys[$row['constraint_name']]['referenced_table'] = $row['referenced_table_name'];
-            $foreignKeys[$row['constraint_name']]['referenced_columns'][] = $row['referenced_column_name'];
+            $foreignKeys[$row['CONSTRAINT_NAME']]['table'] = $row['TABLE_NAME'];
+            $foreignKeys[$row['CONSTRAINT_NAME']]['columns'][] = $row['COLUMN_NAME'];
+            $foreignKeys[$row['CONSTRAINT_NAME']]['referenced_table'] = $row['REFERENCED_TABLE_NAME'];
+            $foreignKeys[$row['CONSTRAINT_NAME']]['referenced_columns'][] = $row['REFERENCED_COLUMN_NAME'];
         }
-
         return $foreignKeys;
     }
 
-    // TODO - CHECK !!!!!!!!!!!!!!!!!!!!!
+    // TODO - build test
     /**
      * {@inheritdoc}
      */
     protected function getAddForeignKeyInstructions(Table $table, ForeignKey $foreignKey)
     {
         $alter = sprintf(
-            'ADD %s',
+            'ALTER TABLE %s ADD %s',
+            $this->quoteSchemaTableName($table->getName()),
             $this->getForeignKeySqlDefinition($foreignKey, $table->getName())
         );
 
-        return new AlterInstructions([$alter]);
+        return new AlterInstructions([], [$alter]);
     }
 
-    // TODO - CHECK !!!!!!!!!!!!!!!!!!!
+    // TODO - build test
     /**
      * {@inheritdoc}
      */
     protected function getDropForeignKeyInstructions($tableName, $constraint)
     {
         $alter = sprintf(
-            'DROP CONSTRAINT %s',
+            'ALTER TABLE %s DROP CONSTRAINT %s',
+            $this->quoteSchemaTableName($tableName),
             $this->quoteColumnName($constraint)
         );
 
-        return new AlterInstructions([$alter]);
+        return new AlterInstructions([],[$alter]);
     }
 
-    // TODO - CHECK !!!!!!!!!!!!!!!!!!!!
+    // TODO - build test
     /**
      * {@inheritdoc}
      */
@@ -809,35 +715,28 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $instructions = new AlterInstructions();
 
         $parts = $this->getSchemaName($tableName);
-        $sql = "SELECT c.CONSTRAINT_NAME
-                FROM (
-                    SELECT CONSTRAINT_NAME, array_agg(COLUMN_NAME::varchar) as columns
-                    FROM information_schema.KEY_COLUMN_USAGE
-                    WHERE TABLE_SCHEMA = %s
-                    AND TABLE_NAME IS NOT NULL
-                    AND TABLE_NAME = %s
-                    AND POSITION_IN_UNIQUE_CONSTRAINT IS NOT NULL
-                    GROUP BY CONSTRAINT_NAME
-                ) c
-                WHERE
-                    ARRAY[%s]::varchar[] <@ c.columns AND
-                    ARRAY[%s]::varchar[] @> c.columns";
+        $fullTableName = $parts['schema'] . $parts['table'];
+        $sql = "SELECT a.constraint_name 
+  					FROM all_cons_columns a
+ 					 JOIN all_constraints c ON a.owner = c.owner AND a.constraint_name = c.constraint_name
+ 					 JOIN all_constraints c_pk ON c.r_owner = c_pk.owner AND c.r_constraint_name = c_pk.constraint_name
+ 					WHERE c.constraint_type = 'R' /* foreign key oracle code */
+ 					AND a.owner || a.table_name = '%s'";
 
         $array = [];
         foreach ($columns as $col) {
-            $array[] = "'$col'";
+            $array[] = $this->quoteColumnName($col);
         }
 
         $rows = $this->fetchAll(sprintf(
             $sql,
-            $this->getConnection()->quote($parts['schema']),
-            $this->getConnection()->quote($parts['table']),
+            $fullTableName,
             implode(',', $array),
             implode(',', $array)
         ));
 
         foreach ($rows as $row) {
-            $newInstr = $this->getDropForeignKeyInstructions($tableName, $row['constraint_name']);
+            $newInstr = $this->getDropForeignKeyInstructions($tableName, $row['CONSTRAINT_NAME']);
             $instructions->merge($newInstr);
         }
 
@@ -855,7 +754,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             // datetime datatypes
             case static::PHINX_TYPE_TIME:
             case static::PHINX_TYPE_TIMESTAMP:
-                return ['name' => 'TIMESTAMP'];
+                return ['name' => 'TIMESTAMP', 'limit' => 6];
             case static::PHINX_TYPE_DATE:
             case static::PHINX_TYPE_DATETIME:
                 return ['name' => 'DATE'];
@@ -864,7 +763,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
 
             // numeric datatypes
             case static::PHINX_TYPE_BOOLEAN:
-                return ['name' => 'NUMBER', 'precision' => 1, 'scale' => 0];
+                return ['name' => 'NUMBER', 'precision' => 5, 'scale' => 0];
             case static::PHINX_TYPE_INTEGER:
             return ['name' => 'NUMBER', 'precision' => 11, 'scale' => 0];
             case static::PHINX_TYPE_BIG_INTEGER:
@@ -880,7 +779,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             case static::PHINX_TYPE_STRING:
                 return ['name' => 'VARCHAR2', 'limit' => 2000];
             case static::PHINX_TYPE_UUID:
-                return ['name' => 'RAW'];
+                return ['name' => 'RAW', 'precision' => 16, 'scale' => 0];
             case static::PHINX_TYPE_CHAR:
                 return ['name' => 'CHAR', 'limit' => 255];
 
@@ -923,25 +822,35 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
      *
      * @param string $sqlType SQL Type definition
      * @param int $precision Precision of NUMBER type to define Phinx Type.
+     * @param int $scale Scale of NUMBER type to define Phinx Type.
      * @throws \RuntimeException
      * @param string $sqlType SQL type
      * @returns string Phinx type
      */
-    public function getPhinxType($sqlType, $precision = null)
+    public function getPhinxType($sqlType, $precision = null, $scale = null)
     {
+        $precision = (int)$precision;
+        $scale = (int)$scale;
+
         if ($sqlType === 'VARCHAR2') {
             return static::PHINX_TYPE_STRING;
         } elseif ($sqlType === 'CHAR') {
             return static::PHINX_TYPE_CHAR;
         } elseif ($sqlType == 'LONG') {
             return static::PHINX_TYPE_TEXT;
-        } elseif ($sqlType === 'NUMBER' && $precision === 11) {
+        } elseif ($sqlType === 'NUMBER' && $precision === 5 && $scale === 0) {
+            return static::PHINX_TYPE_BOOLEAN;
+        } elseif ($sqlType === 'NUMBER' && $precision === 11 && $scale === 0) {
             return static::PHINX_TYPE_INTEGER;
-        } elseif ($sqlType === 'NUMBER' && $precision === 20) {
+        } elseif ($sqlType === 'NUMBER' && $precision === 18 && $scale === 0) {
+            return static::PHINX_TYPE_DECIMAL;
+        } elseif ($sqlType === 'NUMBER' && $precision === 20 && $scale === 0) {
             return static::PHINX_TYPE_BIG_INTEGER;
         } elseif ($sqlType === 'NUMBER') {
             return static::PHINX_TYPE_FLOAT;
         } elseif ($sqlType === 'TIMESTAMP') {
+            return static::PHINX_TYPE_TIMESTAMP;
+        } elseif ($sqlType === 'TIMESTAMP(6)') {
             return static::PHINX_TYPE_TIMESTAMP;
         } elseif ($sqlType === 'DATE') {
             return static::PHINX_TYPE_DATE;
@@ -949,20 +858,15 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             return static::PHINX_TYPE_INTERVAL;
         } elseif ($sqlType === 'BLOB') {
             return static::PHINX_TYPE_BLOB;
-        } elseif ($sqlType === 'RAW' && $precision === 16) {
+        } elseif ($sqlType === 'RAW' && $precision === 16 && $scale === 0) {
             return static::PHINX_TYPE_UUID;
         } elseif ($sqlType === 'RAW') {
             return static::PHINX_TYPE_BLOB;
-        } elseif ($sqlType === 'NUMBER' && $precision === 1) {
-            return static::PHINX_TYPE_BOOLEAN;
-        } elseif ($sqlType === 'NUMBER' && $precision === 18) {
-            return static::PHINX_TYPE_DECIMAL;
         } else {
-            throw new \RuntimeException('The Oracle type: "' . $sqlType . '" is not supported');
+            throw new \RuntimeException('The Oracle type: "' .$sqlType. ')" is not supported');
         }
     }
 
-    // TODO - next implementaion - checking for other SID names
     /**
      * {@inheritdoc}
      */
@@ -971,7 +875,6 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         // create SID ???
     }
 
-    // TODO - next implementaion - checking for other SID names
     /**
      * {@inheritdoc}
      */
@@ -980,7 +883,6 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         // checking another SID
     }
 
-    // TODO - next implementaion - checking for other SID names
     /**
      * {@inheritdoc}
      */
@@ -989,7 +891,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         // drop SID ???
     }
 
-    // TODO - check
+    // TODO - do test
     /**
      * Get the definition for a `DEFAULT` statement.
      *
@@ -1007,10 +909,10 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             $default = $this->castToBool((bool)$default);
         }
 
-        return isset($default) ? 'DEFAULT ' . $default : '';
+        return isset($default) ? 'DEFAULT ON NULL ' . $default : '';
     }
 
-    // TODO - check scale, precision
+    // TODO - check scale, precision, noLimits
     /**
      * Gets the PostgreSQL Column Definition for a Column object.
      *
@@ -1033,8 +935,16 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         if (!in_array($column->getType(), $noLimits) && ($column->getLimit() || isset($sqlType['limit']))) {
             $buffer[] = sprintf('(%s)', $column->getLimit() ?: $sqlType['limit']);
         }
-        if ($column->getPrecision() && $column->getScale()) {
-            $buffer[] = '(' . $column->getPrecision() . ',' . $column->getScale() . ')';
+
+        // TODO check isset or NULL
+        if (!$column->getPrecision() === NULL || isset($sqlType['precision'])) {
+            $buffer[] = '(';
+            $buffer[] = $column->getPrecision() ?: $sqlType['precision'];
+            if (!$column->getScale() === NULL || isset($sqlType['scale'])) {
+                $buffer[] =  ',';
+                $buffer[] = $column->getScale() ?: $sqlType['scale'];
+            }
+            $buffer[] = ')';
         }
         if ($column->getDefault() === null && $column->isNull()) {
             $buffer[] = 'DEFAULT NULL';
@@ -1044,12 +954,12 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         if ($column->isIdentity()) {
             $buffer[] = 'GENERATED BY DEFAULT ON NULL AS IDENTITY MINVALUE -999999999999999999999999 MAXVALUE 999999999999999999999999 INCREMENT BY 1';
         } else {
-            $buffer[] = $column->isNull() ? 'NULL' : 'NOT NULL';
+            $buffer[] = $column->isNull() ? 'NULL' : (!$column->getDefault() === null ? 'NOT NULL' : '');
         }
         return implode(' ', $buffer);
     }
 
-    // TODO - !!!!!!!!!!!!
+    // TODO - build test
     /**
      * Gets the PostgreSQL Column Comment Definition for a column object.
      *
@@ -1060,19 +970,24 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     protected function getColumnCommentSqlDefinition(Column $column, $tableName)
     {
         // passing 'null' is to remove column comment
-        $comment = (strcasecmp($column->getComment(), 'NULL') !== 0)
+        $comment = (strcasecmp($column->getComment(), '') !== 0)
             ? $this->getConnection()->quote($column->getComment())
-            : 'NULL';
+            : '';
 
-        return sprintf(
-            'COMMENT ON COLUMN %s.%s IS %s;',
-            $this->quoteTableName($tableName),
-            $this->quoteColumnName($column->getName()),
-            $comment
-        );
+        $sql = sprintf(
+            'COMMENT ON COLUMN %s.%s IS ',
+            $this->quoteSchemaTableName($tableName),
+            $this->quoteColumnName($column->getName()));
+            if ($comment === '') {
+                $sql .= "''";
+            } else {
+                $sql .= $comment;
+            }
+
+        return $sql;
     }
 
-    // TODO - !!!!!!!!!!!!
+    // OK - PASSED
     /**
      * Gets the PostgreSQL Index Definition for an Index object.
      *
@@ -1091,17 +1006,17 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             $indexName = sprintf('%s_%s', $parts['table'], implode('_', $columnNames));
         }
         $def = sprintf(
-            "CREATE %s INDEX %s ON %s (%s);",
+            "CREATE %s INDEX %s ON %s (%s)",
             ($index->getType() === Index::UNIQUE ? 'UNIQUE' : ''),
             $this->quoteColumnName($indexName),
-            $this->quoteTableName($tableName),
+            $this->quoteSchemaTableName($tableName),
             implode(',', array_map([$this, 'quoteColumnName'], $index->getColumns()))
         );
 
         return $def;
     }
 
-    // TODO - check
+    // TODO - rebuild (fast)
     /**
      * Gets the MySQL Foreign Key Definition for an ForeignKey object.
      *
@@ -1128,6 +1043,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         return $def;
     }
 
+
     /**
      * Creates the specified schema.
      *
@@ -1137,30 +1053,6 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     public function createSchema($schemaName = 'public')
     {
         // @TODO : create new user
-        //$sql = sprintf('CREATE SCHEMA AUTHORIZATION %s;', $this->quoteSchemaName($schemaName));
-       // $this->execute($sql);
-    }
-
-    // TODO - build test
-    /**
-     * Checks to see if a schema exists.
-     *
-     * @return bool
-     */
-    public function hasSchemaTable()
-    {
-        $tableSearchName = $this->getGlobalSchemaName() . $this->getSchemaTableName();
-
-        //var_dump($tableSearchName);die;
-
-        $result = $this->fetchRow(
-            sprintf(
-                'SELECT count(*) as count FROM ALL_TABLES WHERE owner || table_name = \'%s\'',
-                $tableSearchName
-            )
-        );
-        //var_dump($result['COUNT'] > 0);die;
-        return $result['COUNT'] > 0;
     }
 
     // TODO - build test
@@ -1190,8 +1082,6 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     public function dropSchema($schemaName)
     {
         // @TODO : delete user/schema
-       // $sql = sprintf("DROP SCHEMA IF EXISTS %s CASCADE;", $this->quoteSchemaName($schemaName));
-       // $this->execute($sql);
     }
 
     /**
@@ -1227,7 +1117,6 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     }
 
     // TODO - build test
-    // TODO - check
     /**
      * {@inheritdoc}
      */
@@ -1238,7 +1127,6 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     }
 
     // TODO - build test
-    // TODO - check
     /**
      * Check if the given column is an array of a valid type.
      *
@@ -1256,7 +1144,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         return in_array($baseType, $this->getColumnTypes());
     }
 
-    // TODO - build test
+    // OK - Passed
     /**
      * Gets the schema table name.
      *
@@ -1267,7 +1155,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         return $this->schemaTableName;
     }
 
-    // TODO - build test
+    // OK - Passed
     /**
      * Gets the schema name.
      *
@@ -1278,6 +1166,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     {
         $schema = $this->getGlobalSchemaName();
         $table = $tableName;
+
         if (false !== strpos($tableName, '.')) {
             list($schema, $table) = explode('.', $tableName);
         }
@@ -1288,7 +1177,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         ];
     }
 
-    // TODO - build test
+    // OK - Passed
     /**
      * Gets the default schema name.
      *
@@ -1298,10 +1187,11 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     {
         $options = $this->getOptions();
         //  set default schema name based on user name
-        return empty($options['schema']) ? $options['user'] : $options['schema'];
+         return empty($options['schema']) ? $options['user'] : $options['schema'];
     }
 
-    // TODO - build test
+
+    // OK - Passed
     /**
      * {@inheritdoc}
      */
@@ -1316,5 +1206,33 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     public function getDecoratedConnection()
     {
         // @ oracle has decorated?
+    }
+
+
+    // TODO - build test
+    // OK - Passed
+    /**
+     * {@inheritdoc}
+     */
+    public function getVersionLog()
+    {
+        $result = [];
+
+        switch ($this->options['version_order']) {
+            case \Phinx\Config\Config::VERSION_ORDER_CREATION_TIME:
+                $orderBy = '"version" ASC';
+                break;
+            case \Phinx\Config\Config::VERSION_ORDER_EXECUTION_TIME:
+                $orderBy = '"start_time" ASC, "version" ASC';
+                break;
+            default:
+                throw new \RuntimeException('Invalid version_order configuration option');
+        }
+        $rows = $this->fetchAll(sprintf('SELECT * FROM %s ORDER BY %s', $this->quoteSchemaTableName($this->getSchemaTableName()), $orderBy));
+        foreach ($rows as $version) {
+            $result[$version['version']] = $version;
+        }
+
+        return $result;
     }
 }
