@@ -1,9 +1,11 @@
 <?php
 namespace Test\Phinx\Db\Adapter;
+
 use Phinx\Db\Adapter\OracleAdapter;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
+
 class OracleAdapterTest extends TestCase
 {
     /**
@@ -186,7 +188,6 @@ class OracleAdapterTest extends TestCase
         $this->assertFalse($this->adapter->hasTable('identity_table_ctest'));
     }
 
-
     public function testCreateTable()
     {
         $table = new \Phinx\Db\Table('NTABLE', [], $this->adapter);
@@ -200,7 +201,7 @@ class OracleAdapterTest extends TestCase
         $this->assertFalse($this->adapter->hasColumn('NTABLE', 'address'));
         $this->adapter->dropTable('NTABLE');
     }
-    
+
     public function testTableWithoutIndexesByName()
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
@@ -397,8 +398,8 @@ class OracleAdapterTest extends TestCase
         ];
     }
 
-    public function returnTypes() {
-
+    public function returnTypes()
+    {
     }
 
     /**
@@ -679,5 +680,4 @@ class OracleAdapterTest extends TestCase
         $this->adapter->dropTable('SESSIONS123');
         $this->adapter->dropTable('USERS');
     }
-
 }
