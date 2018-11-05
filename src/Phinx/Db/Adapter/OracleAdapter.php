@@ -34,8 +34,7 @@ use Phinx\Db\Table\ForeignKey;
 use Phinx\Db\Table\Index;
 use Phinx\Db\Table\Table;
 use Phinx\Db\Util\AlterInstructions;
-use Phinx\Util\Literal;
-
+use Phinx\Migration\MigrationInterface;
 /**
  * Phinx Oracle Adapter.
  *
@@ -50,6 +49,10 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
      */
     protected $columnsWithComments = [];
     private $upper = true;
+
+    public function getUpper() {
+        return $this->upper;
+    }
 
     // OK - PASSED
     /**
@@ -156,8 +159,8 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             $result = $this->quoteTableName($parts['table']);
         } else {
             $result = $this->quoteSchemaName($parts['schema']) . '.' . $this->quoteTableName($parts['table']);
-        }
 
+        }
         return $this->upper ? strtoupper($result) : $result;
     }
 
@@ -211,7 +214,6 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
                 $tableSearchName
             )
         );
-
         return $result['COUNT'] > 0;
     }
 
@@ -263,7 +265,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         if (isset($options['primary_key'])) {
             $sql = rtrim($sql);
             // set the NAME of pkey to internal code -> 12.1 limit to 30char , 12.2 limit to 60char
-            $sql .= sprintf(' CONSTRAINT %s PRIMARY KEY (', $this->quoteColumnName('P' . mt_rand(10000, 99999) . time()));
+            $sql .= sprintf(' CONSTRAINT %s PRIMARY KEY (', $this->quoteColumnName('P' . mt_rand(10000,99999) . time()));
             if (is_string($options['primary_key'])) { // handle primary_key => 'id'
                 $sql .= $this->quoteColumnName($options['primary_key']);
             } elseif (is_array($options['primary_key'])) { // handle primary_key => array('tag_id', 'resource_id')
@@ -338,10 +340,8 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
      */
     protected function getDropTableInstructions($tableName)
     {
-        $sql = sprintf(
-            'DROP TABLE %s',
-            $this->quoteSchemaTableName($tableName)
-        );
+        $sql = sprintf('DROP TABLE %s',
+            $this->quoteSchemaTableName($tableName));
 
         return new AlterInstructions([], [$sql]);
     }
@@ -393,7 +393,6 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             }
             $columns[$columnInfo['name']] = $column;
         }
-
         return $columns;
     }
     // OK - PASSED
@@ -415,7 +414,6 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             $schemaTableName
         );
         $row = $this->fetchRow($sql);
-
         return $row['COMMENTS'];
     }
 
@@ -509,8 +507,6 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         return new AlterInstructions([], [$alter]);
     }
 
-    // --------------------------------------------------- START work
-
     // OK - PASSED
     /**
      * Get an array of indexes from a particular table.
@@ -524,18 +520,26 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $fullTableName = $parts['schema'] . $parts['table'];
 
         $indexes = [];
-        $sql = sprintf(
-            "SELECT
-                  INDEX_NAME, COLUMN_NAME FROM ALL_IND_COLUMNS
-                  WHERE TABLE_OWNER || TABLE_NAME = '%s' ORDER BY TABLE_NAME, INDEX_NAME",
-            $fullTableName
-        );
+        $sql = sprintf("
+                            SELECT
+                            I.INDEX_NAME, T.COLUMN_EXPRESSION COLUMN_NAME
+                            FROM ALL_IND_COLUMNS I
+                            JOIN ALL_IND_EXPRESSIONS T ON
+                            I.INDEX_OWNER = T.INDEX_OWNER AND
+                            I.INDEX_NAME = T.INDEX_NAME AND
+                            I.TABLE_OWNER = T.TABLE_OWNER AND
+                            I.TABLE_NAME = T.TABLE_NAME AND
+                            I.COLUMN_POSITION = T.COLUMN_POSITION
+                            WHERE I.TABLE_OWNER || I.TABLE_NAME = '%s'
+                            ORDER BY I.TABLE_NAME, I.INDEX_NAME
+        ",
+            $fullTableName);
         $rows = $this->fetchAll($sql);
         foreach ($rows as $row) {
             if (!isset($indexes[$row['INDEX_NAME']])) {
                 $indexes[$row['INDEX_NAME']] = ['columns' => []];
             }
-            $indexes[$row['INDEX_NAME']]['columns'][] = $row['COLUMN_NAME'];
+            $indexes[$row['INDEX_NAME']]['columns'][] = substr($row['COLUMN_NAME'], 1, -1);
         }
 
         return $indexes;
@@ -693,7 +697,6 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             $foreignKeys[$row['CONSTRAINT_NAME']]['referenced_table'] = $row['REFERENCED_TABLE_NAME'];
             $foreignKeys[$row['CONSTRAINT_NAME']]['referenced_columns'][] = $row['REFERENCED_COLUMN_NAME'];
         }
-
         return $foreignKeys;
     }
 
@@ -724,7 +727,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             $this->quoteColumnName($constraint)
         );
 
-        return new AlterInstructions([], [$alter]);
+        return new AlterInstructions([],[$alter]);
     }
 
     // TODO - build test
@@ -786,7 +789,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             case static::PHINX_TYPE_BOOLEAN:
                 return ['name' => 'NUMBER', 'precision' => 5, 'scale' => 0];
             case static::PHINX_TYPE_INTEGER:
-                return ['name' => 'NUMBER', 'precision' => 11, 'scale' => 0];
+            return ['name' => 'NUMBER', 'precision' => 11, 'scale' => 0];
             case static::PHINX_TYPE_BIG_INTEGER:
                 return ['name' => 'NUMBER', 'precision' => 20, 'scale' => 0];
             case static::PHINX_TYPE_DECIMAL:
@@ -891,7 +894,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     /**
      * {@inheritdoc}
      */
-    public function createDatabase($name, $options = [])
+    public function createDatabase($name,$options = [])
     {
         // create SID ???
     }
@@ -958,10 +961,10 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         }
 
         // TODO check isset or NULL
-        if (!$column->getPrecision() === null || isset($sqlType['precision'])) {
+        if (!$column->getPrecision() === NULL || isset($sqlType['precision'])) {
             $buffer[] = '(';
             $buffer[] = $column->getPrecision() ?: $sqlType['precision'];
-            if (!$column->getScale() === null || isset($sqlType['scale'])) {
+            if (!$column->getScale() === NULL || isset($sqlType['scale'])) {
                 $buffer[] =  ',';
                 $buffer[] = $column->getScale() ?: $sqlType['scale'];
             }
@@ -977,7 +980,6 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         } else {
             $buffer[] = $column->isNull() ? 'NULL' : (!$column->getDefault() === null ? 'NOT NULL' : '');
         }
-
         return implode(' ', $buffer);
     }
 
@@ -999,13 +1001,12 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $sql = sprintf(
             'COMMENT ON COLUMN %s.%s IS ',
             $this->quoteSchemaTableName($tableName),
-            $this->quoteColumnName($column->getName())
-        );
-        if ($comment === '') {
-            $sql .= "''";
-        } else {
-            $sql .= $comment;
-        }
+            $this->quoteColumnName($column->getName()));
+            if ($comment === '') {
+                $sql .= "''";
+            } else {
+                $sql .= $comment;
+            }
 
         return $sql;
     }
@@ -1066,6 +1067,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         return $def;
     }
 
+
     /**
      * Creates the specified schema.
      *
@@ -1118,6 +1120,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
        //     $this->dropSchema($schema);
        // }
     }
+
 
     // TODO - build test
     /**
@@ -1211,6 +1214,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
          return empty($options['schema']) ? $options['user'] : $options['schema'];
     }
 
+
     // OK - Passed
     /**
      * {@inheritdoc}
@@ -1227,6 +1231,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     {
         // @ oracle has decorated?
     }
+
 
     // TODO - build test
     // OK - Passed
@@ -1253,5 +1258,81 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         }
 
         return $result;
+    }
+    /**
+     * {@inheritdoc}
+     */
+    public function insert(Table $table, $row)
+    {
+        $sql = sprintf(
+            'INSERT INTO %s ',
+            $this->quoteSchemaTableName($table->getName())
+        );
+        $columns = array_keys($row);
+        $sql .= '(' . implode(', ', array_map([$this, 'quoteColumnName'], $columns)) . ')';
+
+        foreach ($row as $column => $value) {
+            if (is_bool($value)) {
+                $row[$column] = $this->castToBool($value);
+            }
+        }
+
+        if ($this->isDryRunEnabled()) {
+            $sql .= ' VALUES (' . implode(', ', array_map([$this, 'quoteValue'], $row)) . ');';
+            $this->output->writeln($sql);
+        } else {
+            $sql .= ' VALUES (' . implode(', ', array_fill(0, count($columns), '?')) . ')';
+            $stmt = $this->getConnection()->prepare($sql);
+            $stmt->execute(array_values($row));
+        }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function bulkinsert(Table $table, $rows)
+    {
+        foreach ($rows as $row) {
+            $this->insert($table,$row);
+        }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function migrated(MigrationInterface $migration, $direction, $startTime, $endTime)
+    {
+        if (strcasecmp($direction, MigrationInterface::UP) === 0) {
+            // up
+            $sql = sprintf(
+                "INSERT INTO %s (%s, %s, %s, %s, %s) VALUES
+                ('%s', '%s', TO_DATE('%s','YYYY-MM-DD HH24:MI:SS'), TO_DATE('%s','YYYY-MM-DD HH24:MI:SS'), %s)",
+                $this->quoteTableName($this->getSchemaTableName()),
+                $this->quoteColumnName('version'),
+                $this->quoteColumnName('migration_name'),
+                $this->quoteColumnName('start_time'),
+                $this->quoteColumnName('end_time'),
+                $this->quoteColumnName('breakpoint'),
+                $migration->getVersion(),
+                substr($migration->getName(), 0, 100),
+                $startTime,
+                $endTime,
+                $this->castToBool(false)
+            );
+
+            $this->execute($sql);
+        } else {
+            // down
+            $sql = sprintf(
+                "DELETE FROM %s WHERE %s = '%s'",
+                $this->quoteTableName($this->getSchemaTableName()),
+                $this->quoteColumnName('version'),
+                $migration->getVersion()
+            );
+
+            $this->execute($sql);
+        }
+
+        return $this;
     }
 }
