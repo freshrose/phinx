@@ -1,11 +1,9 @@
 <?php
 namespace Test\Phinx\Db\Adapter;
-
 use Phinx\Db\Adapter\OracleAdapter;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
-
 class OracleAdapterTest extends TestCase
 {
     /**
@@ -117,16 +115,14 @@ class OracleAdapterTest extends TestCase
     {
         $this->assertEquals(
             $this->adapter->getUpper() ? strtoupper('"test_table"') : '"test_table"',
-            $this->adapter->quoteSchemaName('test_table')
-        );
+            $this->adapter->quoteSchemaName('test_table'));
     }
 
     public function testQuoteSchemaTableName()
     {
         $this->assertEquals(
             $this->adapter->getUpper() ? strtoupper('"test_schema"."test_table"') : '"test_schema"."test_table"',
-            $this->adapter->quoteSchemaTableName('test_schema.test_table')
-        );
+            $this->adapter->quoteSchemaTableName('test_schema.test_table'));
 
         $this->assertEquals($this->adapter->getUpper() ? strtoupper('"test_table"') : '"test_table"', $this->adapter->quoteSchemaTableName('.test_table'));
 
@@ -199,6 +195,7 @@ class OracleAdapterTest extends TestCase
         $this->assertFalse($this->adapter->hasTable('identity_table_ctest'));
     }
 
+
     public function testCreateTable()
     {
         $table = new \Phinx\Db\Table('NTABLE', [], $this->adapter);
@@ -212,7 +209,7 @@ class OracleAdapterTest extends TestCase
         $this->assertFalse($this->adapter->hasColumn('NTABLE', 'address'));
         $this->adapter->dropTable('NTABLE');
     }
-
+    
     public function testTableWithoutIndexesByName()
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
@@ -409,8 +406,8 @@ class OracleAdapterTest extends TestCase
         ];
     }
 
-    public function returnTypes()
-    {
+    public function returnTypes() {
+
     }
 
     /**
@@ -522,6 +519,47 @@ class OracleAdapterTest extends TestCase
         $this->adapter->dropTable('TABLE1');
         $this->adapter->dropTable('TABLE2');
     }
+
+    public function testAddForeignKey1()
+    {
+        $table = new \Phinx\Db\Table('f_events', [], $this->adapter);
+
+        if (!$table->hasForeignKey('source_event_id')) {
+            $table->addForeignKeyWithName(
+                'fk_source_event',
+                'source_event_id',
+                'f_events',
+                'uid',
+                [
+                    'delete' => 'CASCADE',
+                    'update' => 'CASCADE'
+                ]
+            );
+        }
+
+        $table->save();
+    }
+
+    public function testAddForeignKey2()
+    {
+        $table =  new \Phinx\Db\Table('f_events', [], $this->adapter);
+
+        if (!$table->hasForeignKey('source_task_id')) {
+            $table->addForeignKeyWithName(
+                'fk_source_task',
+                'source_task_id',
+                'f_tasks',
+                'uid',
+                [
+                    'delete' => 'CASCADE',
+                    'update' => 'CASCADE'
+                ]
+            );
+        }
+
+        $table->save();
+    }
+
     public function testAddForeignKey()
     {
         $refTable = new \Phinx\Db\Table('ref_table', [], $this->adapter);
@@ -692,5 +730,47 @@ class OracleAdapterTest extends TestCase
         $this->assertFalse($foreign->hasForeignKey('USER123', 'a'));
         $this->adapter->dropTable('SESSIONS123');
         $this->adapter->dropTable('USERS');
+    }
+
+    public function testBulkInsertData()
+    {
+        $data = [
+            [
+                'column1' => 'crievko',
+                'column2' => 6,
+                'column3' => '2018-06-06',
+                'column4' => '2018-06-06 15:45:45',
+            ],
+            [
+                'column1' => 'bambulka',
+                'column2' => 7,
+                'column3' => '2018-07-06',
+                'column4' => '2018-07-06 15:45:45',
+            ],
+            [
+                'column1' => 'stromcek',
+                'column2' => 8,
+                'column3' => '2018-08-06',
+                'column4' => '2018-08-06 15:45:45',
+            ]
+        ];
+        $table = new \Phinx\Db\Table('table1', [], $this->adapter);
+        $table->addColumn('column1', 'string', ['default' => 'test'])
+            ->addColumn('column2', 'integer', ['null' => false ,'default' => 5])
+            ->addColumn('column3', 'date', ['default' => '2018-05-05'])
+            ->addColumn('column4', 'timestamp', ['default' => '2018-05-05 15:23:00'])
+            ->insert($data)
+            ->save();
+/*
+        $rows = $this->adapter->fetchAll('SELECT * FROM table1');
+        $this->assertEquals('value1', $rows[0]['column1']);
+        $this->assertEquals('value2', $rows[1]['column1']);
+        $this->assertEquals('value3', $rows[2]['column1']);
+        $this->assertEquals(1, $rows[0]['column2']);
+        $this->assertEquals(2, $rows[1]['column2']);
+        $this->assertEquals(3, $rows[2]['column2']);
+        $this->assertEquals('test', $rows[0]['column3']);
+        $this->assertEquals('test', $rows[2]['column3']);
+*/
     }
 }
