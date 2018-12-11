@@ -146,7 +146,7 @@ class OracleAdapterTest extends TestCase
     {
         $this->assertEquals($this->adapter->getUpper() ? strtoupper('"test_column"') : '"test_column"', $this->adapter->quoteColumnName('test_column'));
     }
-
+/*
     public function testCreatingTheSchemaTableOnConnect()
     {
         $this->adapter->connect();
@@ -158,7 +158,7 @@ class OracleAdapterTest extends TestCase
         $this->assertTrue($this->adapter->hasTable($this->adapter->getSchemaTableName()));
         $this->adapter->dropTable($this->adapter->getSchemaTableName());
     }
-
+*/
     public function testSchemaTableIsCreatedWithPrimaryKey()
     {
         $this->adapter->connect();
@@ -208,6 +208,23 @@ class OracleAdapterTest extends TestCase
         $this->assertTrue($this->adapter->hasColumn('NTABLE', 'email'));
         $this->assertFalse($this->adapter->hasColumn('NTABLE', 'address'));
         $this->adapter->dropTable('NTABLE');
+    }
+
+    public function testCreateTableLower()
+    {
+        $this->adapter->setUpper(false);
+        $table = new \Phinx\Db\Table('t', [], $this->adapter);
+        $table->addColumn('column1', 'integer')
+            ->save();
+        $newColumn1 = new \Phinx\Db\Table\Column();
+        $newColumn1
+            ->setType('string')
+            ->setDefault(0);
+        $table->changeColumn('column1', $newColumn1)->save();
+        $columns = $this->adapter->getColumns('t');
+        $this->adapter->dropTable('t');
+        $this->assertSame(0, (int)$columns['column1']->getDefault());
+        $this->adapter->setUpper(true);
     }
     
     public function testTableWithoutIndexesByName()
@@ -282,6 +299,36 @@ class OracleAdapterTest extends TestCase
         }
         $this->adapter->dropTable('TABLE1');
     }
+    public function testAddColumnWithDefaultOnNull()
+    {
+        $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
+        $table->save();$table->addColumn('default_on_null', 'string', ['null' => false, 'default' => 'test', 'defaultOnNull' => true])
+            ->save();
+        $columns = $this->adapter->getColumns('TABLE1');
+        foreach ($columns as $column) {
+            if ($column->getName() == 'default_on_null') {
+                $this->assertNull($column->getDefault());
+            }
+        }
+        $date = date('Y-m-d H:i:s');
+        $table->addColumn('default_on_null_date', 'timestamp', ['null' => false, 'default' => $date, 'defaultOnNull' => true]);
+        $table->addColumn('default_1', 'string', ['null' => false, 'default' => 'teststringer', 'defaultOnNull' => true]);
+        $data = [
+            [
+                'default_1' => 'stringer'
+            ]
+        ];
+        $table->save();
+        $table->insert($data);
+        $table->saveData();
+        $row = $this->adapter->fetchRow("SELECT default_on_null,
+                                                to_char(default_on_null_date,'YYYY-MM-DD HH24:MI:SS') default_on_null_date
+                                         FROM table1");
+        $this->assertSame('test',$this->adapter->getUpper() ? $row['DEFAULT_ON_NULL'] : $row['default_on_null']);
+        $this->assertSame($date,$this->adapter->getUpper() ? $row['DEFAULT_ON_NULL_DATE'] : $row['default_on_null_date']);
+        $this->adapter->dropTable('TABLE1');
+    }
+
     public function testAddColumnWithDefaultBool()
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
