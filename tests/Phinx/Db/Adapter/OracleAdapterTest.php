@@ -1,9 +1,11 @@
 <?php
 namespace Test\Phinx\Db\Adapter;
+
 use Phinx\Db\Adapter\OracleAdapter;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
+
 class OracleAdapterTest extends TestCase
 {
     /**
@@ -115,14 +117,16 @@ class OracleAdapterTest extends TestCase
     {
         $this->assertEquals(
             $this->adapter->getUpper() ? strtoupper('"test_table"') : '"test_table"',
-            $this->adapter->quoteSchemaName('test_table'));
+            $this->adapter->quoteSchemaName('test_table')
+        );
     }
 
     public function testQuoteSchemaTableName()
     {
         $this->assertEquals(
             $this->adapter->getUpper() ? strtoupper('"test_schema"."test_table"') : '"test_schema"."test_table"',
-            $this->adapter->quoteSchemaTableName('test_schema.test_table'));
+            $this->adapter->quoteSchemaTableName('test_schema.test_table')
+        );
 
         $this->assertEquals($this->adapter->getUpper() ? strtoupper('"test_table"') : '"test_table"', $this->adapter->quoteSchemaTableName('.test_table'));
 
@@ -194,7 +198,6 @@ class OracleAdapterTest extends TestCase
         $this->adapter->dropTable('identity_table_ctest');
         $this->assertFalse($this->adapter->hasTable('identity_table_ctest'));
     }
-
 
     public function testCreateTable()
     {
@@ -453,8 +456,8 @@ class OracleAdapterTest extends TestCase
         ];
     }
 
-    public function returnTypes() {
-
+    public function returnTypes()
+    {
     }
 
     /**
@@ -803,7 +806,7 @@ class OracleAdapterTest extends TestCase
         ];
         $table = new \Phinx\Db\Table('table1', [], $this->adapter);
         $table->addColumn('column1', 'string', ['default' => 'test'])
-            ->addColumn('column2', 'integer', ['null' => false ,'default' => 5])
+            ->addColumn('column2', 'integer', ['null' => false , 'default' => 5])
             ->addColumn('column3', 'date', ['default' => '2018-05-05'])
             ->addColumn('column4', 'timestamp', ['default' => '2018-05-05 15:23:00'])
             ->insert($data)
