@@ -229,7 +229,7 @@ class OracleAdapterTest extends TestCase
         $this->assertSame(0, (int)$columns['column1']->getDefault());
         $this->adapter->setUpper(true);
     }
-    
+
     public function testTableWithoutIndexesByName()
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
@@ -327,8 +327,8 @@ class OracleAdapterTest extends TestCase
         $row = $this->adapter->fetchRow("SELECT default_on_null,
                                                 to_char(default_on_null_date,'YYYY-MM-DD HH24:MI:SS') default_on_null_date
                                          FROM table1");
-        $this->assertSame('test',$this->adapter->getUpper() ? $row['DEFAULT_ON_NULL'] : $row['default_on_null']);
-        $this->assertSame($date,$this->adapter->getUpper() ? $row['DEFAULT_ON_NULL_DATE'] : $row['default_on_null_date']);
+        $this->assertSame('test', $this->adapter->getUpper() ? $row['DEFAULT_ON_NULL'] : $row['default_on_null']);
+        $this->assertSame($date, $this->adapter->getUpper() ? $row['DEFAULT_ON_NULL_DATE'] : $row['default_on_null_date']);
         $this->adapter->dropTable('TABLE1');
     }
 
