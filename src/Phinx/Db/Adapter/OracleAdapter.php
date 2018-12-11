@@ -54,8 +54,8 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     /**
      * @return boolean
      */
-    {
     public function getUpper()
+    {
 
         return $this->upper;
     }
