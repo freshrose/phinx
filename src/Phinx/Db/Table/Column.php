@@ -64,6 +64,11 @@ class Column
     /**
      * @var boolean
      */
+    protected $defaultOnNull = false;
+
+    /**
+     * @var boolean
+     */
     protected $identity = false;
 
     /**
@@ -244,6 +249,29 @@ class Column
     public function getDefault()
     {
         return $this->default;
+    }
+
+    /**
+     * Sets the defaultOnNull 4 oracle column value.
+     *
+     * @param mixed $defaultOnNull
+     * @return \Phinx\Db\Table\Column
+     */
+    public function setDefaultOnNull($defaultOnNull)
+    {
+        $this->defaultOnNull = $defaultOnNull;
+
+        return $this;
+    }
+
+    /**
+     * Gets the default column value.
+     *
+     * @return mixed
+     */
+    public function getDefaultOnNull()
+    {
+        return $this->defaultOnNull;
     }
 
     /**
@@ -620,6 +648,7 @@ class Column
         return [
             'limit',
             'default',
+            'defaultOnNull',
             'null',
             'identity',
             'precision',
