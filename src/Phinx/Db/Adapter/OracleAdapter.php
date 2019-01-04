@@ -964,8 +964,8 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         }
 
         $timestamp = '';
-        if (in_array($columnType, ['timestamp', 'time', 'date', 'datetime'])) {
-            $timestamp = strlen($default) === 12 ? 'date' : 'timestamp';
+        if (in_array($columnType, ['timestamp', 'time', 'date', 'datetime']) && 'CURRENT_TIMESTAMP' !== $default) {
+            $timestamp = strlen($default) === 12 ? 'date ' : 'timestamp ';
         }
 
         return isset($default) ? $timestamp . $default : '';
