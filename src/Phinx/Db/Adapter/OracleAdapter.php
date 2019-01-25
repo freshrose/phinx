@@ -50,6 +50,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
      */
     protected $columnsWithComments = [];
     private $upper = true;
+    const ORACLE_DEFAULT = '12.1';
 
     /**
      * @return boolean
@@ -65,6 +66,46 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     public function setUpper($upper)
     {
         $this->upper = $upper;
+    }
+
+    /**
+     * @return string
+     */
+    public function getShortName($name) {
+        if(strlen($name) > $this->getVersionLimit()) {
+            $tableNameArray = explode('_',$name);
+            $arrayLen = count($tableNameArray);
+            $oracleLenLimit = $this->getVersionLimit();
+            $chunkLen = floor($oracleLenLimit / $arrayLen ) - 1;
+            $newArray = array_map(
+                function($param) use ($chunkLen)
+                {
+                    return substr($param,0,$chunkLen);
+                }
+                ,$tableNameArray
+            );
+            return implode('_',$newArray);
+
+        }
+        return $name;
+    }
+
+    /**
+     * @return string
+     */
+    public function getVersionLimit()
+    {
+        $options = $this->getOptions();
+        if (!isset($options['oracle_version'])) {
+            $options['oracle_version'] = static::ORACLE_DEFAULT;
+        }
+        if ($options['oracle_version'] === '12.1') {
+            return 30;
+        }
+        if ($options['oracle_version'] === '12.2') {
+            return 60;
+        }
+        return 128;
     }
 
     /**
@@ -262,11 +303,12 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
 
         // TODO - process table options like collation etc
         $sql = 'CREATE TABLE ';
-        $sql .= $this->quoteSchemaTableName($table->getName()) . ' (';
+        $tableName = $this->getShortName($table->getName());
+        $sql .= $this->quoteSchemaTableName($tableName) . ' (';
 
         $this->columnsWithComments = [];
         foreach ($columns as $column) {
-            $sql .= $this->quoteColumnName($column->getName()) . ' ' . $this->getColumnSqlDefinition($column) . ', ';
+            $sql .= $this->quoteColumnName($this->getShortName($column->getName())) . ' ' . $this->getColumnSqlDefinition($column) . ', ';
 
             // set column comments, if needed
             if ($column->getComment()) {
@@ -278,7 +320,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         if (isset($options['primary_key'])) {
             $sql = rtrim($sql);
             // set the NAME of pkey to internal code -> 12.1 limit to 30char , 12.2 limit to 60char
-            $sql .= sprintf(' CONSTRAINT %s PRIMARY KEY (', $this->quoteColumnName('P' . mt_rand(10000, 99999) . time()));
+            $sql .= sprintf(' CONSTRAINT %s PRIMARY KEY (', $this->quoteColumnName('PK_' . $table->getName()));
             if (is_string($options['primary_key'])) { // handle primary_key => 'id'
                 $sql .= $this->quoteColumnName($options['primary_key']);
             } elseif (is_array($options['primary_key'])) { // handle primary_key => array('tag_id', 'resource_id')
@@ -326,7 +368,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $sql = sprintf(
             'ALTER TABLE %s RENAME TO %s',
             $this->quoteSchemaTableName($tableName),
-            $this->quoteColumnName($newTableName)
+            $this->quoteColumnName($this->getShortName($newTableName))
         );
 
         return new AlterInstructions([], [$sql]);
@@ -464,7 +506,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $instructions = sprintf(
             'ALTER TABLE %s ADD %s %s',
             $this->quoteSchemaTableName($table->getName()),
-            $this->quoteColumnName($column->getName()),
+            $this->quoteColumnName($this->getShortName($column->getName())),
             $this->getColumnSqlDefinition($column)
         );
 
@@ -487,7 +529,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
                 'ALTER TABLE %s RENAME COLUMN %s TO %s',
                 $this->quoteSchematableName($tableName),
                 $this->quoteColumnName($columnName),
-                $this->quoteColumnName($newColumnName)
+                $this->quoteColumnName($this->getShortName($newColumnName))
             )
         );
 
@@ -820,6 +862,8 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             // numeric datatypes
             case static::PHINX_TYPE_BOOLEAN:
                 return ['name' => 'NUMBER', 'precision' => 5, 'scale' => 0];
+            case static::PHINX_TYPE_SMALL_INTEGER:
+                return ['name' => 'NUMBER', 'precision' => 6, 'scale' => 0];
             case static::PHINX_TYPE_INTEGER:
                 return ['name' => 'NUMBER', 'precision' => 11, 'scale' => 0];
             case static::PHINX_TYPE_DECIMAL:
@@ -895,6 +939,8 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             return static::PHINX_TYPE_TEXT;
         } elseif ($sqlType === 'NUMBER' && $precision === 5 && $scale === 0) {
             return static::PHINX_TYPE_BOOLEAN;
+        } elseif ($sqlType === 'NUMBER' && $precision === 6 && $scale === 0) {
+            return static::PHINX_TYPE_SMALL_INTEGER;
         } elseif ($sqlType === 'NUMBER' && $precision === 11 && $scale === 0) {
             return static::PHINX_TYPE_INTEGER;
         } elseif ($sqlType === 'NUMBER' && $precision === 18 && $scale === 0) {
@@ -985,6 +1031,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         // integers cant have limits in Oracle
         $noLimits = [
             static::PHINX_TYPE_INTEGER,
+            static::PHINX_TYPE_SMALL_INTEGER,
             static::PHINX_TYPE_BIG_INTEGER,
             static::PHINX_TYPE_FLOAT,
             static::PHINX_TYPE_UUID,
@@ -1072,7 +1119,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $def = sprintf(
             "CREATE %s INDEX %s ON %s (%s)",
             ($index->getType() === Index::UNIQUE ? 'UNIQUE' : ''),
-            $this->quoteColumnName($indexName),
+            $this->quoteColumnName($this->getShortName($indexName)),
             $this->quoteSchemaTableName($tableName),
             implode(',', array_map([$this, 'quoteIndexName'], $index->getColumns()))
         );
@@ -1081,7 +1128,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     }
 
     /**
-     * Gets the MySQL Foreign Key Definition for an ForeignKey object.
+     * Gets the Oracle Foreign Key Definition for an ForeignKey object.
      *
      * @param \Phinx\Db\Table\ForeignKey $foreignKey
      * @param string     $tableName  Table name
@@ -1092,7 +1139,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $parts = $this->getSchemaName($tableName);
 
         $constraintName = $foreignKey->getConstraint() ?: ($parts['table'] . '_' . implode('_', $foreignKey->getColumns()) . '_FKEY');
-        $def = ' CONSTRAINT ' . $this->quoteColumnName($constraintName) .
+        $def = ' CONSTRAINT ' . $this->quoteColumnName($this->getShortName($constraintName)) .
             ' FOREIGN KEY ("' . implode('", "', $this->upper ? array_map('strtoupper', $foreignKey->getColumns()) : $foreignKey->getColumns()) . '")' .
             " REFERENCES {$this->quoteSchemaTableName($foreignKey->getReferencedTable()->getName())} (\"" .
             implode('", "', $this->upper ? array_map('strtoupper', $foreignKey->getReferencedColumns()) : $foreignKey->getReferencedColumns()) . '")';
@@ -1103,7 +1150,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         if ($foreignKey->getOnUpdate()) {
             $def .= " ON UPDATE {$foreignKey->getOnUpdate()}";
         }
-*/
+        */
         return $def;
     }
 
@@ -1256,7 +1303,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     public function getVersionLog()
     {
         $result = [];
-
+//TODO = Show names instead 0 and show dates to.
         switch ($this->options['version_order']) {
             case \Phinx\Config\Config::VERSION_ORDER_CREATION_TIME:
                 $orderBy = '"version" ASC';
@@ -1267,7 +1314,9 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             default:
                 throw new \RuntimeException('Invalid version_order configuration option');
         }
-        $rows = $this->fetchAll(sprintf('SELECT * FROM %s ORDER BY %s', $this->quoteSchemaTableName($this->getSchemaTableName()), $this->upper ? strtoupper($orderBy) : $orderBy));
+        $rows = $this->fetchAll(sprintf('SELECT * FROM %s ORDER BY %s',
+            $this->quoteSchemaTableName($this->getSchemaTableName()),
+            $this->upper ? strtoupper($orderBy) : $orderBy));
         foreach ($rows as $version) {
             $result[$this->upper ? $version['VERSION'] : $version['version']] = $version;
         }

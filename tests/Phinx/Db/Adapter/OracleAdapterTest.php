@@ -267,7 +267,7 @@ class OracleAdapterTest extends TestCase
             ->save();
         $columns = $this->adapter->getColumns('TABLE1');
         foreach ($columns as $column) {
-            if ($column->getName() == 'default_value') {
+            if ($column->getName() == ($this->adapter->getUpper() ? strtoupper('default_value') : 'default_value')) {
                 $this->assertEquals("'test'", trim($column->getDefault()));
             }
         }
@@ -281,7 +281,7 @@ class OracleAdapterTest extends TestCase
             ->save();
         $columns = $this->adapter->getColumns('TABLE1');
         foreach ($columns as $column) {
-            if ($column->getName() == 'default_zero') {
+            if ($column->getName() == ($this->adapter->getUpper() ? strtoupper('default_zero') : 'default_zero')) {
                 $this->assertNotNull($column->getDefault());
                 $this->assertEquals('0', trim($column->getDefault()));
             }
@@ -296,8 +296,8 @@ class OracleAdapterTest extends TestCase
             ->save();
         $columns = $this->adapter->getColumns('TABLE1');
         foreach ($columns as $column) {
-            if ($column->getName() == 'default_null') {
-                $this->assertNull($column->getDefault());
+            if ($column->getName() == ($this->adapter->getUpper() ? strtoupper('default_null') : 'default_null')) {
+                $this->assertEquals('', trim($column->getDefault()));
             }
         }
         $this->adapter->dropTable('TABLE1');
@@ -305,12 +305,12 @@ class OracleAdapterTest extends TestCase
     public function testAddColumnWithDefaultOnNull()
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
-        $table->save();$table->addColumn('default_on_null', 'string', ['null' => false, 'default' => 'test', 'defaultOnNull' => true])
+        $table->addColumn('default_on_null', 'string', ['null' => false, 'default' => 'test', 'defaultOnNull' => true])
             ->save();
         $columns = $this->adapter->getColumns('TABLE1');
         foreach ($columns as $column) {
-            if ($column->getName() == 'default_on_null') {
-                $this->assertNull($column->getDefault());
+            if ($column->getName() == ($this->adapter->getUpper() ? strtoupper('default_on_null') : 'default_on_null')) {
+                $this->assertNotNull($column->getDefault());
             }
         }
         $date = date('Y-m-d H:i:s');
@@ -342,10 +342,10 @@ class OracleAdapterTest extends TestCase
             ->save();
         $columns = $this->adapter->getColumns('TABLE1');
         foreach ($columns as $column) {
-            if ($column->getName() == 'default_false') {
+            if ($column->getName() == ($this->adapter->getUpper() ? strtoupper('default_false') : 'default_false')) {
                 $this->assertSame(0, (int)trim($column->getDefault()));
             }
-            if ($column->getName() == 'default_true') {
+            if ($column->getName() == ($this->adapter->getUpper() ? strtoupper('default_true') : 'default_true')) {
                 $this->assertSame(1, (int)trim($column->getDefault()));
             }
         }
