@@ -71,22 +71,23 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     /**
      * @return string
      */
-    public function getShortName($name) {
-        if(strlen($name) > $this->getVersionLimit()) {
-            $tableNameArray = explode('_',$name);
+    public function getShortName($name)
+    {
+        if (strlen($name) > $this->getVersionLimit()) {
+            $tableNameArray = explode('_', $name);
             $arrayLen = count($tableNameArray);
             $oracleLenLimit = $this->getVersionLimit();
-            $chunkLen = floor($oracleLenLimit / $arrayLen ) - 1;
+            $chunkLen = floor($oracleLenLimit / $arrayLen) - 1;
             $newArray = array_map(
-                function($param) use ($chunkLen)
-                {
-                    return substr($param,0,$chunkLen);
-                }
-                ,$tableNameArray
+                function ($param) use ($chunkLen) {
+                    return substr($param, 0, $chunkLen);
+                },
+                $tableNameArray
             );
-            return implode('_',$newArray);
 
+            return implode('_', $newArray);
         }
+
         return $name;
     }
 
@@ -105,6 +106,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         if ($options['oracle_version'] === '12.2') {
             return 60;
         }
+
         return 128;
     }
 
@@ -1314,9 +1316,11 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             default:
                 throw new \RuntimeException('Invalid version_order configuration option');
         }
-        $rows = $this->fetchAll(sprintf('SELECT * FROM %s ORDER BY %s',
+        $rows = $this->fetchAll(sprintf(
+            'SELECT * FROM %s ORDER BY %s',
             $this->quoteSchemaTableName($this->getSchemaTableName()),
-            $this->upper ? strtoupper($orderBy) : $orderBy));
+            $this->upper ? strtoupper($orderBy) : $orderBy
+        ));
         foreach ($rows as $version) {
             $result[$this->upper ? $version['VERSION'] : $version['version']] = $version;
         }
