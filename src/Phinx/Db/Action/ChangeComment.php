@@ -1,9 +1,8 @@
-#!/usr/bin/env php
 <?php
-/* Phinx
+/**
+ * Phinx
  *
  * (The MIT license)
- * Copyright (c) 2014 Rob Morgan
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated * documentation files (the "Software"), to
@@ -23,6 +22,39 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
+namespace Phinx\Db\Action;
 
-$app = require __DIR__ . '/../app/phinx.php';
-$app->run();
+use Phinx\Db\Table\Table;
+
+class ChangeComment extends Action
+{
+
+    /**
+     * The new comment for the table
+     *
+     * @var string|null
+     */
+    protected $newComment;
+
+    /**
+     * Constructor
+     *
+     * @param Table $table The table to be changed
+     * @param string|null $newComment The new comment for the table
+     */
+    public function __construct(Table $table, $newComment)
+    {
+        parent::__construct($table);
+        $this->newComment = $newComment;
+    }
+
+    /**
+     * Return the new comment for the table
+     *
+     * @return string|null
+     */
+    public function getNewComment()
+    {
+        return $this->newComment;
+    }
+}

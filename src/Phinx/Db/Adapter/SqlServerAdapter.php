@@ -213,14 +213,10 @@ class SqlServerAdapter extends PdoAdapter implements AdapterInterface
 
         // Add the default primary key
         if (!isset($options['id']) || (isset($options['id']) && $options['id'] === true)) {
-            $column = new Column();
-            $column->setName('id')
-                   ->setType('integer')
-                   ->setIdentity(true);
+            $options['id'] = 'id';
+        }
 
-            array_unshift($columns, $column);
-            $options['primary_key'] = 'id';
-        } elseif (isset($options['id']) && is_string($options['id'])) {
+        if (isset($options['id']) && is_string($options['id'])) {
             // Handle id => "field_name" to support AUTO_INCREMENT
             $column = new Column();
             $column->setName($options['id'])
@@ -271,6 +267,55 @@ class SqlServerAdapter extends PdoAdapter implements AdapterInterface
 
         // execute the sql
         $this->execute($sql);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function getChangePrimaryKeyInstructions(Table $table, $newColumns)
+    {
+        $instructions = new AlterInstructions();
+
+        // Drop the existing primary key
+        $primaryKey = $this->getPrimaryKey($table->getName());
+        if (!empty($primaryKey['constraint'])) {
+            $sql = sprintf(
+                'DROP CONSTRAINT %s',
+                $this->quoteColumnName($primaryKey['constraint'])
+            );
+            $instructions->addAlter($sql);
+        }
+
+        // Add the primary key(s)
+        if (!empty($newColumns)) {
+            $sql = sprintf(
+                'ALTER TABLE %s ADD CONSTRAINT %s PRIMARY KEY (',
+                $this->quoteTableName($table->getName()),
+                $this->quoteColumnName('PK_' . $table->getName())
+            );
+            if (is_string($newColumns)) { // handle primary_key => 'id'
+                $sql .= $this->quoteColumnName($newColumns);
+            } elseif (is_array($newColumns)) { // handle primary_key => array('tag_id', 'resource_id')
+                $sql .= implode(',', array_map([$this, 'quoteColumnName'], $newColumns));
+            } else {
+                throw new \InvalidArgumentException(sprintf(
+                    "Invalid value for primary key: %s",
+                    json_encode($newColumns)
+                ));
+            }
+            $sql .= ')';
+            $instructions->addPostStep($sql);
+        }
+
+        return $instructions;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function getChangeCommentInstructions(Table $table, $newComment)
+    {
+        throw new \BadMethodCallException('SQLite does not have table comments');
     }
 
     /**
@@ -378,9 +423,15 @@ class SqlServerAdapter extends PdoAdapter implements AdapterInterface
         );
         $rows = $this->fetchAll($sql);
         foreach ($rows as $columnInfo) {
+            try {
+                $type = $this->getPhinxType($columnInfo['type']);
+            } catch (UnsupportedColumnTypeException $e) {
+                $type = Literal::from($columnInfo['type']);
+            }
+
             $column = new Column();
             $column->setName($columnInfo['name'])
-                   ->setType($this->getPhinxType($columnInfo['type']))
+                   ->setType($type)
                    ->setNull($columnInfo['null'] !== 'NO')
                    ->setDefault($this->parseDefault($columnInfo['default']))
                    ->setIdentity($columnInfo['identity'] === '1')
@@ -760,6 +811,61 @@ ORDER BY T.[name], I.[index_id];";
     /**
      * {@inheritdoc}
      */
+    public function hasPrimaryKey($tableName, $columns, $constraint = null)
+    {
+        $primaryKey = $this->getPrimaryKey($tableName);
+
+        if (empty($primaryKey)) {
+            return false;
+        }
+
+        if ($constraint) {
+            return ($primaryKey['constraint'] === $constraint);
+        } else {
+            if (is_string($columns)) {
+                $columns = [$columns]; // str to array
+            }
+            $missingColumns = array_diff($columns, $primaryKey['columns']);
+
+            return empty($missingColumns);
+        }
+    }
+
+    /**
+     * Get the primary key from a particular table.
+     *
+     * @param string $tableName Table Name
+     * @return array
+     */
+    public function getPrimaryKey($tableName)
+    {
+        $rows = $this->fetchAll(sprintf(
+            "SELECT
+                    tc.constraint_name,
+                    kcu.column_name
+                FROM information_schema.table_constraints AS tc
+                JOIN information_schema.key_column_usage AS kcu
+                    ON tc.constraint_name = kcu.constraint_name
+                WHERE constraint_type = 'PRIMARY KEY'
+                    AND tc.table_name = '%s'
+                ORDER BY kcu.ordinal_position",
+            $tableName
+        ));
+
+        $primaryKey = [
+            'columns' => [],
+        ];
+        foreach ($rows as $row) {
+            $primaryKey['constraint'] = $row['constraint_name'];
+            $primaryKey['columns'][] = $row['column_name'];
+        }
+
+        return $primaryKey;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function hasForeignKey($tableName, $columns, $constraint = null)
     {
         if (is_string($columns)) {
@@ -900,6 +1006,8 @@ ORDER BY T.[name], I.[index_id];";
                 return ['name' => 'ntext'];
             case static::PHINX_TYPE_INTEGER:
                 return ['name' => 'int'];
+            case static::PHINX_TYPE_SMALL_INTEGER:
+                return ['name' => 'smallint'];
             case static::PHINX_TYPE_BIG_INTEGER:
                 return ['name' => 'bigint'];
             case static::PHINX_TYPE_TIMESTAMP:
@@ -922,7 +1030,7 @@ ORDER BY T.[name], I.[index_id];";
                 // Specific types (point, polygon, etc) are set at insert time.
                 return ['name' => 'geography'];
             default:
-                throw new \RuntimeException('The type: "' . $type . '" is not supported.');
+                throw new UnsupportedColumnTypeException('Column type "' . $type . '" is not supported by SqlServer.');
         }
     }
 
@@ -930,9 +1038,9 @@ ORDER BY T.[name], I.[index_id];";
      * Returns Phinx type by SQL type
      *
      * @param string $sqlType SQL Type definition
-     * @throws \RuntimeException
+     * @throws UnsupportedColumnTypeException
      * @internal param string $sqlType SQL type
-     * @returns string Phinx type
+     * @return string Phinx type
      */
     public function getPhinxType($sqlType)
     {
@@ -953,6 +1061,8 @@ ORDER BY T.[name], I.[index_id];";
             case 'numeric':
             case 'money':
                 return static::PHINX_TYPE_DECIMAL;
+            case 'smallint':
+                return static::PHINX_TYPE_SMALL_INTEGER;
             case 'bigint':
                 return static::PHINX_TYPE_BIG_INTEGER;
             case 'real':
@@ -976,7 +1086,7 @@ ORDER BY T.[name], I.[index_id];";
             case 'filestream':
                 return static::PHINX_TYPE_FILESTREAM;
             default:
-                throw new \RuntimeException('The SqlServer type: "' . $sqlType . '" is not supported');
+                throw new UnsupportedColumnTypeException('Column type "' . $sqlType . '" is not supported by SqlServer.');
         }
     }
 

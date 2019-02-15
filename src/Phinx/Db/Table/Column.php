@@ -64,17 +64,7 @@ class Column
     /**
      * @var boolean
      */
-    protected $defaultOnNull = false;
-
-    /**
-     * @var boolean
-     */
     protected $identity = false;
-
-    /**
-     * @var integer
-     */
-    protected $precision;
 
     /**
      * @var integer
@@ -252,29 +242,6 @@ class Column
     }
 
     /**
-     * Sets the defaultOnNull 4 oracle column value.
-     *
-     * @param mixed $defaultOnNull
-     * @return \Phinx\Db\Table\Column
-     */
-    public function setDefaultOnNull($defaultOnNull)
-    {
-        $this->defaultOnNull = $defaultOnNull;
-
-        return $this;
-    }
-
-    /**
-     * Gets the default column value.
-     *
-     * @return mixed
-     */
-    public function getDefaultOnNull()
-    {
-        return $this->defaultOnNull;
-    }
-
-    /**
      * Sets whether or not the column is an identity column.
      *
      * @param bool $identity
@@ -364,7 +331,7 @@ class Column
      */
     public function setPrecision($precision)
     {
-        $this->precision = $precision;
+        $this->setLimit($precision);
 
         return $this;
     }
@@ -379,7 +346,7 @@ class Column
      */
     public function getPrecision()
     {
-        return $this->precision;
+        return $this->limit;
     }
 
     /**
@@ -423,7 +390,7 @@ class Column
      */
     public function setPrecisionAndScale($precision, $scale)
     {
-        $this->precision = $precision;
+        $this->setLimit($precision);
         $this->scale = $scale;
 
         return $this;
@@ -648,10 +615,8 @@ class Column
         return [
             'limit',
             'default',
-            'defaultOnNull',
             'null',
             'identity',
-            'precision',
             'scale',
             'after',
             'update',
@@ -674,6 +639,7 @@ class Column
     {
         return [
             'length' => 'limit',
+            'precision' => 'limit',
         ];
     }
 

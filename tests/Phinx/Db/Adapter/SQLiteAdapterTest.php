@@ -3,6 +3,8 @@
 namespace Test\Phinx\Db\Adapter;
 
 use Phinx\Db\Adapter\SQLiteAdapter;
+use Phinx\Db\Table\Column;
+use Phinx\Util\Literal;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputDefinition;
@@ -237,6 +239,97 @@ class SQLiteAdapterTest extends TestCase
         $this->assertTrue($this->adapter->hasForeignKey($table->getName(), ['ref_table_id']));
     }
 
+    public function testAddPrimaryKey()
+    {
+        $table = new \Phinx\Db\Table('table1', ['id' => false], $this->adapter);
+        $table
+            ->addColumn('column1', 'integer')
+            ->addColumn('column2', 'integer')
+            ->save();
+
+        $table
+            ->changePrimaryKey('column1')
+            ->save();
+
+        $this->assertTrue($this->adapter->hasPrimaryKey('table1', ['column1']));
+    }
+
+    public function testChangePrimaryKey()
+    {
+        $table = new \Phinx\Db\Table('table1', ['id' => false, 'primary_key' => 'column1'], $this->adapter);
+        $table
+            ->addColumn('column1', 'integer')
+            ->addColumn('column2', 'integer')
+            ->save();
+
+        $table
+            ->changePrimaryKey('column2')
+            ->save();
+
+        $this->assertFalse($this->adapter->hasPrimaryKey('table1', ['column1']));
+        $this->assertTrue($this->adapter->hasPrimaryKey('table1', ['column2']));
+    }
+
+    public function testChangePrimaryKeyNonInteger()
+    {
+        $table = new \Phinx\Db\Table('table1', ['id' => false, 'primary_key' => 'column1'], $this->adapter);
+        $table
+            ->addColumn('column1', 'string')
+            ->addColumn('column2', 'string')
+            ->save();
+
+        $table
+            ->changePrimaryKey('column2')
+            ->save();
+
+        $this->assertFalse($this->adapter->hasPrimaryKey('table1', ['column1']));
+        $this->assertTrue($this->adapter->hasPrimaryKey('table1', ['column2']));
+    }
+
+    public function testDropPrimaryKey()
+    {
+        $table = new \Phinx\Db\Table('table1', ['id' => false, 'primary_key' => 'column1'], $this->adapter);
+        $table
+            ->addColumn('column1', 'integer')
+            ->addColumn('column2', 'integer')
+            ->save();
+
+        $table
+            ->changePrimaryKey(null)
+            ->save();
+
+        $this->assertFalse($this->adapter->hasPrimaryKey('table1', ['column1']));
+    }
+
+    /**
+     * @expectedException \InvalidArgumentException
+     */
+    public function testAddMultipleColumnPrimaryKeyFails()
+    {
+        $table = new \Phinx\Db\Table('table1', [], $this->adapter);
+        $table
+            ->addColumn('column1', 'integer')
+            ->addColumn('column2', 'integer')
+            ->save();
+
+        $table
+            ->changePrimaryKey(['column1', 'column2'])
+            ->save();
+    }
+
+    /**
+     * @expectedException \BadMethodCallException
+     */
+    public function testChangeCommentFails()
+    {
+        $table = new \Phinx\Db\Table('table1', [], $this->adapter);
+        $table->save();
+
+        $table
+            ->changeComment('comment1')
+            ->save();
+    }
+
     public function testRenameTable()
     {
         $table = new \Phinx\Db\Table('table1', [], $this->adapter);
@@ -292,6 +385,16 @@ class SQLiteAdapterTest extends TestCase
               ->save();
         $rows = $this->adapter->fetchAll(sprintf('pragma table_info(%s)', 'table1'));
         $this->assertEquals("''", $rows[1]['dflt_value']);
+    }
+
+    public function testAddDoubleColumn()
+    {
+        $table = new \Phinx\Db\Table('table1', [], $this->adapter);
+        $table->save();
+        $table->addColumn('foo', 'double')
+              ->save();
+        $rows = $this->adapter->fetchAll(sprintf('pragma table_info(%s)', 'table1'));
+        $this->assertEquals('DOUBLE', $rows[1]['type']);
     }
 
     public function testRenameColumn()
@@ -456,7 +559,8 @@ class SQLiteAdapterTest extends TestCase
             ['column10', 'date', []],
             ['column11', 'binary', []],
             ['column13', 'string', ['limit' => 10]],
-            ['column15', 'integer', ['limit' => 10]],
+            ['column15', 'smallinteger', []],
+            ['column15', 'integer', []],
             ['column22', 'enum', ['values' => ['three', 'four']]],
             ['column23', 'json', [], 'text'],
         ];
@@ -465,6 +569,11 @@ class SQLiteAdapterTest extends TestCase
     /**
      *
      * @dataProvider columnsProvider
+     *
+     * @param string $colName
+     * @param string $type
+     * @param array $options
+     * @param string|null $actualType
      */
     public function testGetColumns($colName, $type, $options, $actualType = null)
     {
@@ -475,14 +584,23 @@ class SQLiteAdapterTest extends TestCase
         $this->assertCount(2, $columns);
         $this->assertEquals($colName, $columns[1]->getName());
 
-        if (!$actualType) {
-            $actualType = $type;
+        $this->assertEquals($actualType ?: $type, $columns[1]->getType());
+
+        if (isset($options['limit'])) {
+            $this->assertEquals($options['limit'], $columns[1]->getLimit());
         }
 
-        if (is_string($columns[1]->getType())) {
-            $this->assertEquals($actualType, $columns[1]->getType());
-        } else {
-            $this->assertEquals(['name' => $actualType] + $options, $columns[1]->getType());
+        // SQLiteAdapter doesn't return enum values.
+        if (isset($options['values']) && $type !== 'enum') {
+            $this->assertEquals($options['values'], $columns[1]->getValues());
+        }
+
+        if (isset($options['precision'])) {
+            $this->assertEquals($options['precision'], $columns[1]->getPrecision());
+        }
+
+        if (isset($options['scale'])) {
+            $this->assertEquals($options['scale'], $columns[1]->getScale());
         }
     }
 
@@ -653,18 +771,21 @@ class SQLiteAdapterTest extends TestCase
         $this->assertRegExp('/\/\* Comments from "column1" \*\//', $sql);
     }
 
-    /**
-     * @expectedException RuntimeException
-     * @expectedExceptionMessage The type: "fake" is not supported.
-     */
-    public function testPhinxTypeNotValidType()
+    public function testPhinxTypeLiteral()
     {
-        $this->adapter->getPhinxType('fake');
+        $this->assertEquals(
+            [
+                'name' => Literal::from('fake'),
+                'limit' => null,
+                'scale' => null
+            ],
+            $this->adapter->getPhinxType('fake')
+        );
     }
 
     /**
-     * @expectedException RuntimeException
-     * @expectedExceptionMessage Column type ?int? is not supported
+     * @expectedException \Phinx\Db\Adapter\UnsupportedColumnTypeException
+     * @expectedExceptionMessage Column type "?int?" is not supported by SQLite.
      */
     public function testPhinxTypeNotValidTypeRegex()
     {
@@ -1020,5 +1141,32 @@ OUTPUT;
             ->execute();
 
         $this->assertEquals(1, $stm->rowCount());
+    }
+
+    /**
+     * Tests adding more than one column to a table
+     * that already exists due to adapters having different add column instructions
+     */
+    public function testAlterTableColumnAdd()
+    {
+        $table = new \Phinx\Db\Table('table1', [], $this->adapter);
+        $table->save();
+
+        $table->addColumn('string_col', 'string');
+        $table->addColumn('string_col_2', 'string');
+        $table->save();
+        $this->assertTrue($this->adapter->hasColumn('table1', 'string_col'));
+        $this->assertTrue($this->adapter->hasColumn('table1', 'string_col_2'));
+    }
+
+    public function testLiteralSupport() {
+        $createQuery = <<<'INPUT'
+CREATE TABLE `test` (`real_col` REAL)
+INPUT;
+        $this->adapter->execute($createQuery);
+        $table = new \Phinx\Db\Table('test', [], $this->adapter);
+        $columns = $table->getColumns();
+        $this->assertCount(1, $columns);
+        $this->assertEquals(Literal::from('real'), array_pop($columns)->getType());
     }
 }

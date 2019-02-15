@@ -32,8 +32,9 @@ use Phinx\Db\Action\AddColumn;
 use Phinx\Db\Action\AddForeignKey;
 use Phinx\Db\Action\AddIndex;
 use Phinx\Db\Action\ChangeColumn;
+use Phinx\Db\Action\ChangeComment;
+use Phinx\Db\Action\ChangePrimaryKey;
 use Phinx\Db\Action\CreateTable;
-use Phinx\Db\Action\DropColumn;
 use Phinx\Db\Action\DropForeignKey;
 use Phinx\Db\Action\DropIndex;
 use Phinx\Db\Action\DropTable;
@@ -147,6 +148,16 @@ class Table
     }
 
     /**
+     * Does the table have pending actions?
+     *
+     * @return bool
+     */
+    public function hasPendingActions()
+    {
+        return count($this->actions->getActions()) > 0 || count($this->data) > 0;
+    }
+
+    /**
      * Does the table exist?
      *
      * @return bool
@@ -177,6 +188,32 @@ class Table
     public function rename($newTableName)
     {
         $this->actions->addAction(new RenameTable($this->table, $newTableName));
+
+        return $this;
+    }
+
+    /**
+     * Changes the primary key of the database table.
+     *
+     * @param string|array|null $columns Column name(s) to belong to the primary key, or null to drop the key
+     * @return $this
+     */
+    public function changePrimaryKey($columns)
+    {
+        $this->actions->addAction(new ChangePrimaryKey($this->table, $columns));
+
+        return $this;
+    }
+
+    /**
+     * Changes the comment of the database table.
+     *
+     * @param string|null $comment New comment string, or null to drop the comment
+     * @return $this
+     */
+    public function changeComment($comment)
+    {
+        $this->actions->addAction(new ChangeComment($this->table, $comment));
 
         return $this;
     }
@@ -370,12 +407,12 @@ class Table
     /**
      * Removes the given index from a table.
      *
-     * @param array $columns Columns
+     * @param string|array $columns Columns
      * @return \Phinx\Db\Table
      */
-    public function removeIndex(array $columns)
+    public function removeIndex($columns)
     {
-        $action = DropIndex::build($this->table, $columns);
+        $action = DropIndex::build($this->table, is_string($columns) ? [$columns] : $columns);
         $this->actions->addAction($action);
 
         return $this;
@@ -558,7 +595,10 @@ class Table
 
             return $this;
         }
-        $this->data[] = $data;
+
+        if (count($data) > 0) {
+            $this->data[] = $data;
+        }
 
         return $this;
     }

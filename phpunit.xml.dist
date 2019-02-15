@@ -43,9 +43,9 @@
         <!-- Oracle -->
         <env name="TESTS_PHINX_DB_ADAPTER_ORACLE_ENABLED" value="true"/>
         <env name="TESTS_PHINX_DB_ADAPTER_ORACLE_HOST" value="localhost"/>
-        <env name="TESTS_PHINX_DB_ADAPTER_ORACLE_SID" value="orclpdb1.localdomain"/>
-        <env name="TESTS_PHINX_DB_ADAPTER_ORACLE_USERNAME" value="AOPDB"/>
-        <env name="TESTS_PHINX_DB_ADAPTER_ORACLE_PASSWORD" value="freshflow"/>
+        <env name="TESTS_PHINX_DB_ADAPTER_ORACLE_SID" value="service.localdomain"/>
+        <env name="TESTS_PHINX_DB_ADAPTER_ORACLE_USERNAME" value="SCHEMA"/>
+        <env name="TESTS_PHINX_DB_ADAPTER_ORACLE_PASSWORD" value="secretpass"/>
         <env name="TESTS_PHINX_DB_ADAPTER_ORACLE_PORT" value="1521"/>
         <env name="TESTS_PHINX_DB_ADAPTER_ORACLE_CONNECTION_STRING" value="localhost"/>
     </php>

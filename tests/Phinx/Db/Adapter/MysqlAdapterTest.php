@@ -4,6 +4,7 @@ namespace Test\Phinx\Db\Adapter;
 
 use Phinx\Db\Adapter\AdapterInterface;
 use Phinx\Db\Adapter\MysqlAdapter;
+use Phinx\Db\Table\Column;
 use Phinx\Util\Literal;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -370,6 +371,117 @@ class MysqlAdapterTest extends TestCase
         $this->assertFalse($this->adapter->hasColumn('ntable', 'address'));
     }
 
+    public function testAddPrimarykey()
+    {
+        $table = new \Phinx\Db\Table('table1', ['id' => false], $this->adapter);
+        $table
+            ->addColumn('column1', 'integer')
+            ->save();
+
+        $table
+            ->changePrimaryKey('column1')
+            ->save();
+
+        $this->assertTrue($this->adapter->hasPrimaryKey('table1', ['column1']));
+    }
+
+    public function testChangePrimaryKey()
+    {
+        $table = new \Phinx\Db\Table('table1', ['id' => false, 'primary_key' => 'column1'], $this->adapter);
+        $table
+            ->addColumn('column1', 'integer')
+            ->addColumn('column2', 'integer')
+            ->addColumn('column3', 'integer')
+            ->save();
+
+        $table
+            ->changePrimaryKey(['column2', 'column3'])
+            ->save();
+
+        $this->assertFalse($this->adapter->hasPrimaryKey('table1', ['column1']));
+        $this->assertTrue($this->adapter->hasPrimaryKey('table1', ['column2', 'column3']));
+    }
+
+    public function testDropPrimaryKey()
+    {
+        $table = new \Phinx\Db\Table('table1', ['id' => false, 'primary_key' => 'column1'], $this->adapter);
+        $table
+            ->addColumn('column1', 'integer')
+            ->save();
+
+        $table
+            ->changePrimaryKey(null)
+            ->save();
+
+        $this->assertFalse($this->adapter->hasPrimaryKey('table1', ['column1']));
+    }
+
+    public function testAddComment()
+    {
+        $table = new \Phinx\Db\Table('table1', [], $this->adapter);
+        $table->save();
+
+        $table
+            ->changeComment('comment1')
+            ->save();
+
+        $rows = $this->adapter->fetchAll(
+            sprintf(
+                "SELECT table_comment 
+                    FROM INFORMATION_SCHEMA.TABLES 
+                    WHERE table_schema='%s' 
+                        AND table_name='%s'",
+                TESTS_PHINX_DB_ADAPTER_MYSQL_DATABASE,
+                'table1'
+            )
+        );
+        $this->assertEquals('comment1', $rows[0]['table_comment']);
+    }
+
+    public function testChangeComment()
+    {
+        $table = new \Phinx\Db\Table('table1', ['comment' => 'comment1'], $this->adapter);
+        $table->save();
+
+        $table
+            ->changeComment('comment2')
+            ->save();
+
+        $rows = $this->adapter->fetchAll(
+            sprintf(
+                "SELECT table_comment 
+                    FROM INFORMATION_SCHEMA.TABLES 
+                    WHERE table_schema='%s' 
+                        AND table_name='%s'",
+                TESTS_PHINX_DB_ADAPTER_MYSQL_DATABASE,
+                'table1'
+            )
+        );
+        $this->assertEquals('comment2', $rows[0]['table_comment']);
+    }
+
+    public function testDropComment()
+    {
+        $table = new \Phinx\Db\Table('table1', ['comment' => 'comment1'], $this->adapter);
+        $table->save();
+
+        $table
+            ->changeComment(null)
+            ->save();
+
+        $rows = $this->adapter->fetchAll(
+            sprintf(
+                "SELECT table_comment 
+                    FROM INFORMATION_SCHEMA.TABLES 
+                    WHERE table_schema='%s' 
+                        AND table_name='%s'",
+                TESTS_PHINX_DB_ADAPTER_MYSQL_DATABASE,
+                'table1'
+            )
+        );
+        $this->assertEquals('', $rows[0]['table_comment']);
+    }
+
     public function testRenameTable()
     {
         $table = new \Phinx\Db\Table('table1', [], $this->adapter);
@@ -448,7 +560,8 @@ class MysqlAdapterTest extends TestCase
         $table->addColumn('default_ts', 'timestamp', ['default' => Literal::from('CURRENT_TIMESTAMP')])
               ->save();
         $rows = $this->adapter->fetchAll('SHOW COLUMNS FROM table1');
-        $this->assertEquals('CURRENT_TIMESTAMP', $rows[1]['Default']);
+        // MariaDB returns current_timestamp()
+        $this->assertTrue('CURRENT_TIMESTAMP' === $rows[1]['Default'] || 'current_timestamp()' === $rows[1]['Default']);
     }
 
     public function testAddIntegerColumnWithDefaultSigned()
@@ -471,6 +584,28 @@ class MysqlAdapterTest extends TestCase
               ->save();
         $rows = $this->adapter->fetchAll('SHOW COLUMNS FROM table1');
         $this->assertEquals('int(11) unsigned', $rows[1]['Type']);
+    }
+
+    public function testAddDoubleColumnWithDefaultSigned()
+    {
+        $table = new \Phinx\Db\Table('table1', [], $this->adapter);
+        $table->save();
+        $this->assertFalse($table->hasColumn('user_id'));
+        $table->addColumn('foo', 'double')
+              ->save();
+        $rows = $this->adapter->fetchAll('SHOW COLUMNS FROM table1');
+        $this->assertEquals('double', $rows[1]['Type']);
+    }
+
+    public function testAddDoubleColumnWithSignedEqualsFalse()
+    {
+        $table = new \Phinx\Db\Table('table1', [], $this->adapter);
+        $table->save();
+        $this->assertFalse($table->hasColumn('user_id'));
+        $table->addColumn('foo', 'double', ['signed' => false])
+              ->save();
+        $rows = $this->adapter->fetchAll('SHOW COLUMNS FROM table1');
+        $this->assertEquals('double unsigned', $rows[1]['Type']);
     }
 
     public function testAddBooleanColumnWithSignedEqualsFalse()
@@ -781,25 +916,29 @@ class MysqlAdapterTest extends TestCase
     {
         return [
             ['column1', 'string', []],
-            ['column2', 'integer', []],
-            ['column3', 'biginteger', []],
-            ['column4', 'text', []],
-            ['column5', 'float', []],
-            ['column6', 'decimal', []],
-            ['column7', 'datetime', []],
-            ['column8', 'time', []],
-            ['column9', 'timestamp', []],
-            ['column10', 'date', []],
-            ['column11', 'binary', []],
-            ['column12', 'boolean', []],
-            ['column13', 'string', ['limit' => 10]],
+            ['column2', 'smallinteger', []],
+            ['column3', 'integer', []],
+            ['column4', 'biginteger', []],
+            ['column5', 'text', []],
+            ['column6', 'float', []],
+            ['column7', 'decimal', []],
+            ['decimal_precision_scale', 'decimal', ['precision' => 10, 'scale' => 2]],
+            ['decimal_limit', 'decimal', ['limit' => 10]],
+            ['decimal_precision', 'decimal', ['precision' => 10]],
+            ['column8', 'datetime', []],
+            ['column9', 'time', []],
+            ['column10', 'timestamp', []],
+            ['column11', 'date', []],
+            ['column12', 'binary', []],
+            ['column13', 'boolean', []],
+            ['column14', 'string', ['limit' => 10]],
             ['column15', 'integer', ['limit' => 10]],
             ['column16', 'geometry', []],
             ['column17', 'point', []],
             ['column18', 'linestring', []],
             ['column19', 'polygon', []],
             ['column20', 'uuid', []],
-            ['column21', 'set', ['values' => "one, two"]],
+            ['column21', 'set', ['values' => ['one', 'two']]],
             ['column22', 'enum', ['values' => ['three', 'four']]],
             ['column23', 'bit', []]
         ];
@@ -818,6 +957,22 @@ class MysqlAdapterTest extends TestCase
         $this->assertCount(2, $columns);
         $this->assertEquals($colName, $columns[1]->getName());
         $this->assertEquals($type, $columns[1]->getType());
+
+        if (isset($options['limit'])) {
+            $this->assertEquals($options['limit'], $columns[1]->getLimit());
+        }
+
+        if (isset($options['values'])) {
+            $this->assertEquals($options['values'], $columns[1]->getValues());
+        }
+
+        if (isset($options['precision'])) {
+            $this->assertEquals($options['precision'], $columns[1]->getPrecision());
+        }
+
+        if (isset($options['scale'])) {
+            $this->assertEquals($options['scale'], $columns[1]->getScale());
+        }
     }
 
     public function testDescribeTable()
@@ -1458,5 +1613,16 @@ OUTPUT;
             ->execute();
 
         $this->assertEquals(1, $stm->rowCount());
+    }
+
+    public function testLiteralSupport() {
+        $createQuery = <<<'INPUT'
+CREATE TABLE `test` (`double_col` double NOT NULL)
+INPUT;
+        $this->adapter->execute($createQuery);
+        $table = new \Phinx\Db\Table('test', [], $this->adapter);
+        $columns = $table->getColumns();
+        $this->assertCount(1, $columns);
+        $this->assertEquals(Literal::from('double'), array_pop($columns)->getType());
     }
 }

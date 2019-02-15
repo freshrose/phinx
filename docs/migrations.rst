@@ -18,7 +18,7 @@ command:
 
 .. code-block:: bash
 
-        $ php vendor/bin/phinx create MyNewMigration
+        $ vendor/bin/phinx create MyNewMigration
 
 This will create a new migration in the format
 ``YYYYMMDDHHMMSS_my_new_migration.php``, where the first 14 characters are
@@ -382,10 +382,7 @@ store a collection of users.
 
         class MyNewMigration extends AbstractMigration
         {
-            /**
-             * Migrate Up.
-             */
-            public function up()
+            public function change()
             {
                 $users = $this->table('users');
                 $users->addColumn('username', 'string', ['limit' => 20])
@@ -397,21 +394,13 @@ store a collection of users.
                       ->addColumn('created', 'datetime')
                       ->addColumn('updated', 'datetime', ['null' => true])
                       ->addIndex(['username', 'email'], ['unique' => true])
-                      ->save();
-            }
-
-            /**
-             * Migrate Down.
-             */
-            public function down()
-            {
-
+                      ->create();
             }
         }
 
 Columns are added using the ``addColumn()`` method. We create a unique index
 for both the username and email columns using the ``addIndex()`` method.
-Finally calling ``save()`` commits the changes to the database.
+Finally calling ``create()`` commits the changes to the database.
 
 .. note::
 
@@ -435,24 +424,13 @@ create a primary key using two columns instead:
 
         class MyNewMigration extends AbstractMigration
         {
-            /**
-             * Migrate Up.
-             */
-            public function up()
+            public function change()
             {
                 $table = $this->table('followers', ['id' => false, 'primary_key' => ['user_id', 'follower_id']]);
                 $table->addColumn('user_id', 'integer')
                       ->addColumn('follower_id', 'integer')
                       ->addColumn('created', 'datetime')
-                      ->save();
-            }
-
-            /**
-             * Migrate Down.
-             */
-            public function down()
-            {
-
+                      ->create();
             }
         }
 
@@ -467,23 +445,12 @@ To simply change the name of the primary key, we need to override the default ``
 
         class MyNewMigration extends AbstractMigration
         {
-            /**
-             * Migrate Up.
-             */
             public function up()
             {
                 $table = $this->table('followers', ['id' => 'user_id']);
                 $table->addColumn('follower_id', 'integer')
                       ->addColumn('created', 'timestamp', ['default' => 'CURRENT_TIMESTAMP'])
-                      ->save();
-            }
-
-            /**
-             * Migrate Down.
-             */
-            public function down()
-            {
-
+                      ->create();
             }
         }
 
@@ -510,23 +477,12 @@ To simply set it to unsigned just pass ``signed`` option with a ``false`` value:
 
         class MyNewMigration extends AbstractMigration
         {
-            /**
-             * Migrate Up.
-             */
-            public function up()
+            public function change()
             {
                 $table = $this->table('followers', ['signed' => false]);
                 $table->addColumn('follower_id', 'integer')
                       ->addColumn('created', 'timestamp', ['default' => 'CURRENT_TIMESTAMP'])
-                      ->save();
-            }
-
-            /**
-             * Migrate Down.
-             */
-            public function down()
-            {
-
+                      ->create();
             }
         }
 
@@ -552,6 +508,7 @@ Column types are specified as strings and can be one of:
 -  decimal
 -  float
 -  integer
+-  smallinteger
 -  string
 -  text
 -  time
@@ -561,7 +518,7 @@ Column types are specified as strings and can be one of:
 In addition, the MySQL adapter supports ``enum``, ``set``, ``blob`` and ``json`` column types.
 (``json`` in MySQL 5.7 and above)
 
-In addition, the Postgres adapter supports ``smallint``, ``interval``, ``json``, ``jsonb``, ``uuid``, ``cidr``, ``inet`` and ``macaddr`` column types
+In addition, the Postgres adapter supports ``interval``, ``json``, ``jsonb``, ``uuid``, ``cidr``, ``inet`` and ``macaddr`` column types
 (PostgreSQL 9.3 and above).
 
 For valid options, see the `Valid Column Options`_ below.
@@ -702,7 +659,9 @@ To rename a table access an instance of the Table object then call the
             public function up()
             {
                 $table = $this->table('users');
-                $table->rename('legacy_users');
+                $table
+                    ->rename('legacy_users')
+                    ->update();
             }
 
             /**
@@ -711,7 +670,89 @@ To rename a table access an instance of the Table object then call the
             public function down()
             {
                 $table = $this->table('legacy_users');
-                $table->rename('users');
+                $table
+                    ->rename('users')
+                    ->update();
+            }
+        }
+
+Changing the Primary Key
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+To change the primary key on an existing table, use the ``changePrimaryKey()`` method.
+Pass in a column name or array of columns names to include in the primary key, or ``null`` to drop the primary key.
+Note that the mentioned columns must be added to the table, they will not be added implicitly.
+
+.. code-block:: php
+
+        <?php
+
+        use Phinx\Migration\AbstractMigration;
+
+        class MyNewMigration extends AbstractMigration
+        {
+            /**
+             * Migrate Up.
+             */
+            public function up()
+            {
+                $users = $this->table('users');
+                $users
+                    ->addColumn('username', 'string', ['limit' => 20, 'null' => false])
+                    ->addColumn('password', 'string', ['limit' => 40])
+                    ->save();
+
+                $users
+                    ->addColumn('new_id', 'integer', ['null' => false])
+                    ->changePrimaryKey(['new_id', 'username'])
+                    ->save();
+            }
+
+            /**
+             * Migrate Down.
+             */
+            public function down()
+            {
+
+            }
+        }
+
+Changing the Table Comment
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To change the comment on an existing table, use the ``changeComment()`` method.
+Pass in a string to set as the new table comment, or ``null`` to drop the existing comment.
+
+.. code-block:: php
+
+        <?php
+
+        use Phinx\Migration\AbstractMigration;
+
+        class MyNewMigration extends AbstractMigration
+        {
+            /**
+             * Migrate Up.
+             */
+            public function up()
+            {
+                $users = $this->table('users');
+                $users
+                    ->addColumn('username', 'string', ['limit' => 20])
+                    ->addColumn('password', 'string', ['limit' => 40])
+                    ->save();
+
+                $users
+                    ->changeComment('This is the table with users auth information, password should be encrypted')
+                    ->save();
+            }
+
+            /**
+             * Migrate Down.
+             */
+            public function down()
+            {
+
             }
         }
 
@@ -732,6 +773,7 @@ Column types are specified as strings and can be one of:
 -  decimal
 -  float
 -  integer
+-  smallinteger
 -  string
 -  text
 -  time
@@ -740,7 +782,7 @@ Column types are specified as strings and can be one of:
 
 In addition, the MySQL adapter supports ``enum``, ``set`` and ``blob`` column types.
 
-In addition, the Postgres adapter supports ``smallint``, ``json``, ``jsonb``, ``uuid``, ``cidr``, ``inet`` and ``macaddr`` column types
+In addition, the Postgres adapter supports ``json``, ``jsonb``, ``uuid``, ``cidr``, ``inet`` and ``macaddr`` column types
 (PostgreSQL 9.3 and above).
 
 Valid Column Options
@@ -859,30 +901,6 @@ delete set an action to be triggered when the row is deleted
 
 You can pass one or more of these options to any column with the optional
 third argument array.
-
-Limit Option and PostgreSQL
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-When using the PostgreSQL adapter, additional hinting of database column type can be
-made for ``integer`` columns. Using ``limit`` with one the following options will
-modify the column type accordingly:
-
-============ ==============
-Limit        Column Type
-============ ==============
-INT_SMALL    SMALLINT
-============ ==============
-
-.. code-block:: php
-
-         use Phinx\Db\Adapter\PostgresAdapter;
-
-         //...
-
-         $table = $this->table('cart_items');
-         $table->addColumn('user_id', 'integer')
-               ->addColumn('subtype_id', 'integer', ['limit' => PostgresAdapter::INT_SMALL])
-               ->create();
 
 Limit Option and MySQL
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -1300,10 +1318,6 @@ call this method for each index.
             }
         }
 
-.. note::
-
-    There is no need to call the ``save()`` method when using
-    ``removeIndex()``. The index will be removed immediately.
 
 Working With Foreign Keys
 -------------------------
@@ -1446,7 +1460,7 @@ We can also easily check if a foreign key exists:
 
 Finally, to delete a foreign key, use the ``dropForeignKey`` method.
 
-Note that like other methods in the ``Table` class, ``dropForeignKey`` also needs ``save()``
+Note that like other methods in the ``Table`` class, ``dropForeignKey`` also needs ``save()``
 to be called at the end in order to be executed. This allows phinx to intelligently
 plan migrations when more than one table is involved.
 
@@ -1481,7 +1495,7 @@ plan migrations when more than one table is involved.
 Using the Query Builder
 -----------------------
 
-It is not uncommon to pair database structuree changes with data changes. For example, you may want to
+It is not uncommon to pair database structure changes with data changes. For example, you may want to
 migrate the data in a couple columns from the users to a newly created table. For this type of scenarios,
 Phinx provides access to a Query builder object, that you may use to execute complex ``SELECT``, ``UPDATE``,
 ``INSERT`` or ``DELETE`` statements.

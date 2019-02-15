@@ -51,6 +51,7 @@ interface AdapterInterface
     const PHINX_TYPE_BIT = 'bit';
     const PHINX_TYPE_FLOAT = 'float';
     const PHINX_TYPE_DECIMAL = 'decimal';
+    const PHINX_TYPE_DOUBLE = 'double';
     const PHINX_TYPE_DATETIME = 'datetime';
     const PHINX_TYPE_TIMESTAMP = 'timestamp';
     const PHINX_TYPE_TIME = 'time';
@@ -390,6 +391,16 @@ interface AdapterInterface
      * @return bool
      */
     public function hasIndexByName($tableName, $indexName);
+
+    /**
+     * Checks to see if the specified primary key exists.
+     *
+     * @param string   $tableName  Table Name
+     * @param string[] $columns    Column(s)
+     * @param string   $constraint Constraint name
+     * @return bool
+     */
+    public function hasPrimaryKey($tableName, $columns, $constraint = null);
 
     /**
      * Checks to see if a foreign key exists.

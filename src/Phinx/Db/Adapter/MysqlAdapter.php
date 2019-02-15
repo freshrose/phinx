@@ -44,8 +44,14 @@ use Phinx\Util\Literal;
  */
 class MysqlAdapter extends PdoAdapter implements AdapterInterface
 {
-
-    protected $signedColumnTypes = ['integer' => true, 'biginteger' => true, 'float' => true, 'decimal' => true, 'boolean' => true];
+    protected $signedColumnTypes = [
+        'integer' => true,
+        'biginteger' => true,
+        'float' => true,
+        'decimal' => true,
+        'double' => true,
+        'boolean' => true,
+    ];
 
     const TEXT_TINY = 255;
     const TEXT_SMALL = 255; /* deprecated, alias of TEXT_TINY */
@@ -221,15 +227,10 @@ class MysqlAdapter extends PdoAdapter implements AdapterInterface
 
         // Add the default primary key
         if (!isset($options['id']) || (isset($options['id']) && $options['id'] === true)) {
-            $column = new Column();
-            $column->setName('id')
-                   ->setType('integer')
-                   ->setSigned(isset($options['signed']) ? $options['signed'] : true)
-                   ->setIdentity(true);
+            $options['id'] = 'id';
+        }
 
-            array_unshift($columns, $column);
-            $options['primary_key'] = 'id';
-        } elseif (isset($options['id']) && is_string($options['id'])) {
+        if (isset($options['id']) && is_string($options['id'])) {
             // Handle id => "field_name" to support AUTO_INCREMENT
             $column = new Column();
             $column->setName($options['id'])
@@ -301,6 +302,56 @@ class MysqlAdapter extends PdoAdapter implements AdapterInterface
     /**
      * {@inheritdoc}
      */
+    protected function getChangePrimaryKeyInstructions(Table $table, $newColumns)
+    {
+        $instructions = new AlterInstructions();
+
+        // Drop the existing primary key
+        $primaryKey = $this->getPrimaryKey($table->getName());
+        if (!empty($primaryKey['columns'])) {
+            $instructions->addAlter('DROP PRIMARY KEY');
+        }
+
+        // Add the primary key(s)
+        if (!empty($newColumns)) {
+            $sql = 'ADD PRIMARY KEY (';
+            if (is_string($newColumns)) { // handle primary_key => 'id'
+                $sql .= $this->quoteColumnName($newColumns);
+            } elseif (is_array($newColumns)) { // handle primary_key => array('tag_id', 'resource_id')
+                $sql .= implode(',', array_map([$this, 'quoteColumnName'], $newColumns));
+            } else {
+                throw new \InvalidArgumentException(sprintf(
+                    "Invalid value for primary key: %s",
+                    json_encode($newColumns)
+                ));
+            }
+            $sql .= ')';
+            $instructions->addAlter($sql);
+        }
+
+        return $instructions;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function getChangeCommentInstructions(Table $table, $newComment)
+    {
+        $instructions = new AlterInstructions();
+
+        // passing 'null' is to remove table comment
+        $newComment = ($newComment !== null)
+            ? $newComment
+            : '';
+        $sql = sprintf(" COMMENT=%s ", $this->getConnection()->quote($newComment));
+        $instructions->addAlter($sql);
+
+        return $instructions;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     protected function getRenameTableInstructions($tableName, $newTableName)
     {
         $sql = sprintf(
@@ -351,7 +402,8 @@ class MysqlAdapter extends PdoAdapter implements AdapterInterface
                    ->setDefault($columnInfo['Default'])
                    ->setType($phinxType['name'])
                    ->setSigned(strpos($columnInfo['Type'], 'unsigned') === false)
-                   ->setLimit($phinxType['limit']);
+                   ->setLimit($phinxType['limit'])
+                   ->setScale($phinxType['scale']);
 
             if ($columnInfo['Extra'] === 'auto_increment') {
                 $column->setIdentity(true);
@@ -600,6 +652,60 @@ class MysqlAdapter extends PdoAdapter implements AdapterInterface
     /**
      * {@inheritdoc}
      */
+    public function hasPrimaryKey($tableName, $columns, $constraint = null)
+    {
+        $primaryKey = $this->getPrimaryKey($tableName);
+
+        if (empty($primaryKey['constraint'])) {
+            return false;
+        }
+
+        if ($constraint) {
+            return ($primaryKey['constraint'] === $constraint);
+        } else {
+            if (is_string($columns)) {
+                $columns = [$columns]; // str to array
+            }
+            $missingColumns = array_diff($columns, $primaryKey['columns']);
+
+            return empty($missingColumns);
+        }
+    }
+
+    /**
+     * Get the primary key from a particular table.
+     *
+     * @param string $tableName Table Name
+     * @return array
+     */
+    public function getPrimaryKey($tableName)
+    {
+        $rows = $this->fetchAll(sprintf(
+            "SELECT
+                k.constraint_name,
+                k.column_name
+            FROM information_schema.table_constraints t
+            JOIN information_schema.key_column_usage k
+                USING(constraint_name,table_name)
+            WHERE t.constraint_type='PRIMARY KEY'
+                AND t.table_name='%s'",
+            $tableName
+        ));
+
+        $primaryKey = [
+            'columns' => [],
+        ];
+        foreach ($rows as $row) {
+            $primaryKey['constraint'] = $row['constraint_name'];
+            $primaryKey['columns'][] = $row['column_name'];
+        }
+
+        return $primaryKey;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function hasForeignKey($tableName, $columns, $constraint = null)
     {
         if (is_string($columns)) {
@@ -725,6 +831,7 @@ class MysqlAdapter extends PdoAdapter implements AdapterInterface
     {
         switch ($type) {
             case static::PHINX_TYPE_FLOAT:
+            case static::PHINX_TYPE_DOUBLE:
             case static::PHINX_TYPE_DECIMAL:
             case static::PHINX_TYPE_DATE:
             case static::PHINX_TYPE_ENUM:
@@ -797,6 +904,7 @@ class MysqlAdapter extends PdoAdapter implements AdapterInterface
                         'tinyint' => static::INT_TINY,
                     ];
                     $limits = [
+                        'smallint' => 6,
                         'int' => 11,
                         'bigint' => 20,
                     ];
@@ -828,7 +936,7 @@ class MysqlAdapter extends PdoAdapter implements AdapterInterface
 
                 return ['name' => 'year', 'limit' => $limit];
             default:
-                throw new \RuntimeException('The type: "' . $type . '" is not supported.');
+                throw new UnsupportedColumnTypeException('Column type "' . $type . '" is not supported by MySQL.');
         }
     }
 
@@ -836,24 +944,24 @@ class MysqlAdapter extends PdoAdapter implements AdapterInterface
      * Returns Phinx type by SQL type
      *
      * @param string $sqlTypeDef
-     * @throws \RuntimeException
+     * @throws UnsupportedColumnTypeException
      * @internal param string $sqlType SQL type
-     * @returns string Phinx type
+     * @return array Phinx type
      */
     public function getPhinxType($sqlTypeDef)
     {
         $matches = [];
         if (!preg_match('/^([\w]+)(\(([\d]+)*(,([\d]+))*\))*(.+)*$/', $sqlTypeDef, $matches)) {
-            throw new \RuntimeException('Column type ' . $sqlTypeDef . ' is not supported');
+            throw new UnsupportedColumnTypeException('Column type "' . $sqlTypeDef . '" is not supported by MySQL.');
         } else {
             $limit = null;
-            $precision = null;
+            $scale = null;
             $type = $matches[1];
             if (count($matches) > 2) {
                 $limit = $matches[3] ? (int)$matches[3] : null;
             }
             if (count($matches) > 4) {
-                $precision = (int)$matches[5];
+                $scale = (int)$matches[5];
             }
             if ($type === 'tinyint' && $limit === 1) {
                 $type = static::PHINX_TYPE_BOOLEAN;
@@ -934,16 +1042,20 @@ class MysqlAdapter extends PdoAdapter implements AdapterInterface
                     break;
             }
 
-            // Call this to check if parsed type is supported.
-            $this->getSqlType($type, $limit);
+            try {
+                // Call this to check if parsed type is supported.
+                $this->getSqlType($type, $limit);
+            } catch (UnsupportedColumnTypeException $e) {
+                $type = Literal::from($type);
+            }
 
             $phinxType = [
                 'name' => $type,
                 'limit' => $limit,
-                'precision' => $precision
+                'scale' => $scale
             ];
 
-            if (static::PHINX_TYPE_ENUM == $type) {
+            if (static::PHINX_TYPE_ENUM == $type || static::PHINX_TYPE_SET == $type) {
                 $phinxType['values'] = explode("','", trim($matches[6], "()'"));
             }
 

@@ -3,6 +3,7 @@
 namespace Test\Phinx\Db\Adapter;
 
 use Phinx\Db\Adapter\PostgresAdapter;
+use Phinx\Db\Adapter\UnsupportedColumnTypeException;
 use Phinx\Db\Table\Column;
 use Phinx\Util\Literal;
 use PHPUnit\Framework\TestCase;
@@ -269,6 +270,114 @@ class PostgresAdapterTest extends TestCase
         $this->assertTrue($this->adapter->hasIndex('table1', ['email']));
         $this->assertFalse($this->adapter->hasIndex('table1', ['email', 'user_email']));
         $this->assertTrue($this->adapter->hasIndexByName('table1', 'myemailindex'));
+    }
+
+    public function testAddPrimaryKey()
+    {
+        $table = new \Phinx\Db\Table('table1', ['id' => false], $this->adapter);
+        $table
+            ->addColumn('column1', 'integer')
+            ->save();
+
+        $table
+            ->changePrimaryKey('column1')
+            ->save();
+
+        $this->assertTrue($this->adapter->hasPrimaryKey('table1', ['column1']));
+    }
+
+    public function testChangePrimaryKey()
+    {
+        $table = new \Phinx\Db\Table('table1', ['id' => false, 'primary_key' => 'column1'], $this->adapter);
+        $table
+            ->addColumn('column1', 'integer')
+            ->addColumn('column2', 'integer')
+            ->addColumn('column3', 'integer')
+            ->save();
+
+        $table
+            ->changePrimaryKey(['column2', 'column3'])
+            ->save();
+
+        $this->assertFalse($this->adapter->hasPrimaryKey('table1', ['column1']));
+        $this->assertTrue($this->adapter->hasPrimaryKey('table1', ['column2', 'column3']));
+    }
+
+    public function testDropPrimaryKey()
+    {
+        $table = new \Phinx\Db\Table('table1', ['id' => false, 'primary_key' => 'column1'], $this->adapter);
+        $table
+            ->addColumn('column1', 'integer')
+            ->save();
+
+        $table
+            ->changePrimaryKey(null)
+            ->save();
+
+        $this->assertFalse($this->adapter->hasPrimaryKey('table1', ['column1']));
+    }
+
+    public function testAddComment()
+    {
+        $table = new \Phinx\Db\Table('table1', [], $this->adapter);
+        $table->save();
+
+        $table
+            ->changeComment('comment1')
+            ->save();
+
+        $rows = $this->adapter->fetchAll(
+            sprintf(
+                "SELECT description
+                    FROM pg_description
+                    JOIN pg_class ON pg_description.objoid = pg_class.oid
+                    WHERE relname = '%s'",
+                'table1'
+            )
+        );
+        $this->assertEquals('comment1', $rows[0]['description']);
+    }
+
+    public function testChangeComment()
+    {
+        $table = new \Phinx\Db\Table('table1', ['comment' => 'comment1'], $this->adapter);
+        $table->save();
+
+        $table
+            ->changeComment('comment2')
+            ->save();
+
+        $rows = $this->adapter->fetchAll(
+            sprintf(
+                "SELECT description
+                    FROM pg_description
+                    JOIN pg_class ON pg_description.objoid = pg_class.oid
+                    WHERE relname = '%s'",
+                'table1'
+            )
+        );
+        $this->assertEquals('comment2', $rows[0]['description']);
+    }
+
+    public function testDropComment()
+    {
+        $table = new \Phinx\Db\Table('table1', ['comment' => 'comment1'], $this->adapter);
+        $table->save();
+
+        $table
+            ->changeComment(null)
+            ->save();
+
+        $rows = $this->adapter->fetchAll(
+            sprintf(
+                "SELECT description
+                    FROM pg_description
+                    JOIN pg_class ON pg_description.objoid = pg_class.oid
+                    WHERE relname = '%s'",
+                'table1'
+            )
+        );
+        $this->assertEmpty($rows);
     }
 
     public function testRenameTable()
@@ -666,7 +775,7 @@ class PostgresAdapterTest extends TestCase
     {
         return [
             ['column1', 'string', []],
-            ['column2', 'integer', ['limit' => PostgresAdapter::INT_SMALL], 'smallint'],
+            ['column2', 'smallinteger', []],
             ['column2_1', 'integer', []],
             ['column3', 'biginteger', []],
             ['column4', 'text', []],
@@ -680,6 +789,9 @@ class PostgresAdapterTest extends TestCase
             ['column12', 'boolean', []],
             ['column13', 'string', ['limit' => 10]],
             ['column16', 'interval', []],
+            ['decimal_precision_scale', 'decimal', ['precision' => 10, 'scale' => 2]],
+            ['decimal_limit', 'decimal', ['limit' => 10]],
+            ['decimal_precision', 'decimal', ['precision' => 10]],
         ];
     }
 
@@ -1054,8 +1166,8 @@ class PostgresAdapterTest extends TestCase
     }
 
     /**
-     * @expectedException \RuntimeException
-     * @expectedExceptionMessage The type: "idontexist" is not supported
+     * @expectedException \Phinx\Db\Adapter\UnsupportedColumnTypeException
+     * @expectedExceptionMessage Column type "idontexist" is not supported by Postgresql.
      */
     public function testInvalidSqlType()
     {
@@ -1076,6 +1188,8 @@ class PostgresAdapterTest extends TestCase
 
         $this->assertEquals('float', $this->adapter->getPhinxType('real'));
         $this->assertEquals('float', $this->adapter->getPhinxType('float4'));
+
+        $this->assertEquals('double', $this->adapter->getPhinxType('double precision'));
 
         $this->assertEquals('boolean', $this->adapter->getPhinxType('bool'));
         $this->assertEquals('boolean', $this->adapter->getPhinxType('boolean'));

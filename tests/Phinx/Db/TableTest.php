@@ -2,11 +2,13 @@
 
 namespace Test\Phinx\Db;
 
+use Phinx\Db\Action\DropIndex;
 use Phinx\Db\Adapter\AdapterInterface;
 use Phinx\Db\Adapter\MysqlAdapter;
 use Phinx\Db\Adapter\PostgresAdapter;
 use Phinx\Db\Adapter\SQLiteAdapter;
 use Phinx\Db\Adapter\SqlServerAdapter;
+use Phinx\Db\Table\Index;
 use PHPUnit\Framework\TestCase;
 
 class TableTest extends TestCase
@@ -194,6 +196,18 @@ class TableTest extends TestCase
         $this->assertEquals($expectedData, $table->getData());
     }
 
+    public function testInsertSaveEmptyData()
+    {
+        $adapterStub = $this->getMockBuilder('\Phinx\Db\Adapter\MysqlAdapter')
+            ->setConstructorArgs([[]])
+            ->getMock();
+        $table = new \Phinx\Db\Table('ntable', [], $adapterStub);
+
+        $adapterStub->expects($this->never())->method('bulkinsert');
+
+        $table->insert([])->save();
+    }
+
     public function testInsertSaveData()
     {
         $adapterStub = $this->getMockBuilder('\Phinx\Db\Adapter\MysqlAdapter')
@@ -272,6 +286,31 @@ class TableTest extends TestCase
         $this->assertEquals([], $table->getData());
     }
 
+    public function testPendingAfterAddingData()
+    {
+        $adapterStub = $this->getMockBuilder('\Phinx\Db\Adapter\MysqlAdapter')
+            ->setConstructorArgs([[]])
+            ->getMock();
+        $table = new \Phinx\Db\Table('ntable', [], $adapterStub);
+        $columns = ["column1"];
+        $data = [["value1"]];
+        $table->insert($columns, $data);
+        $this->assertEquals(true, $table->hasPendingActions());
+    }
+
+    public function testPendingAfterAddingColumn()
+    {
+        $adapterStub = $this->getMockBuilder('\Phinx\Db\Adapter\MysqlAdapter')
+            ->setConstructorArgs([[]])
+            ->getMock();
+        $adapterStub->expects($this->any())
+            ->method('isValidColumnType')
+            ->willReturn(true);
+        $table = new \Phinx\Db\Table('ntable', [], $adapterStub);
+        $table->addColumn("column1", "integer", ['null' => true]);
+        $this->assertEquals(true, $table->hasPendingActions());
+    }
+
     public function testGetColumn()
     {
         $adapterStub = $this->getMockBuilder('\Phinx\Db\Adapter\MysqlAdapter')
@@ -290,6 +329,44 @@ class TableTest extends TestCase
 
         $this->assertEquals($column1, $table->getColumn('column1'));
         $this->assertNull($table->getColumn('column2'));
+    }
+
+    /**
+     * @dataProvider removeIndexDataprovider
+     *
+     * @param string $indexIdentifier
+     * @param Index $index
+     */
+    public function testRemoveIndex($indexIdentifier, Index $index) {
+        $adapterStub = $this->getMockBuilder('\Phinx\Db\Adapter\MysqlAdapter')
+            ->setConstructorArgs([[]])
+            ->getMock();
+
+        $table = new \Phinx\Db\Table('table', [], $adapterStub);
+        $table->removeIndex($indexIdentifier);
+
+        $indexes = array_map(function(DropIndex $action) {
+            return $action->getIndex();
+        }, $this->getPendingActions($table));
+
+        $this->assertEquals([$index], $indexes);
+    }
+
+    public function removeIndexDataprovider() {
+        return [
+            [
+                'indexA',
+                (new Index())->setColumns(['indexA'])
+            ],
+            [
+                ['indexB', 'indexC'],
+                (new Index())->setColumns(['indexB', 'indexC'])
+            ],
+            [
+                ['indexD'],
+                (new Index())->setColumns(['indexD'])
+            ]
+        ];
     }
 
     protected function getPendingActions($table)

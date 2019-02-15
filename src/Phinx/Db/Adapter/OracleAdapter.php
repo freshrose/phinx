@@ -874,6 +874,8 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
                 return ['name' => 'NUMBER', 'precision' => 24, 'scale' => 0];
             case static::PHINX_TYPE_FLOAT:
                 return ['name' => 'NUMBER'];
+            case static::PHINX_TYPE_DOUBLE;
+                return ['name' => 'NUMBER'];
 
             // character datatypes
             case static::PHINX_TYPE_TEXT:
