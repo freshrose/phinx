@@ -824,4 +824,14 @@ class OracleAdapterTest extends TestCase
             ->insert($data)
             ->save();
     }
+
+    public function testShortNames() : void
+    {
+
+        $table = new \Phinx\Db\Table('super_long_table_name_which_will_be_shorten', [], $this->adapter);
+        $table->addColumn('ultra_long_column_name_which_will_be_shorten', 'string', ['default' => 'test_default_value__which_not_will__be_shorten'])
+            ->addColumn('more_ultra_long_column_name_which_will_be_shorten', 'integer', ['null' => false , 'default' => 5])
+            ->save();
+        var_dump($table->getColumns());
+    }
 }

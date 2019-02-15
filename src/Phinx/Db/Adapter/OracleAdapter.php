@@ -118,7 +118,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             return 60;
         }
         if ($options['oracle_version'] === 'debug') {
-            return 2;
+            return 10;
         }
 
         return 128;
@@ -336,7 +336,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         if (isset($options['primary_key'])) {
             $sql = rtrim($sql);
             // set the NAME of pkey to internal code -> 12.1 limit to 30char , 12.2 limit to 60char
-            $sql .= sprintf(' CONSTRAINT %s PRIMARY KEY (', $this->quoteColumnName('PK_' . $table->getName()));
+            $sql .= sprintf(' CONSTRAINT %s PRIMARY KEY (', $this->quoteColumnName('PK_' . $this->getShortName($table->getName())));
             if (is_string($options['primary_key'])) { // handle primary_key => 'id'
                 $sql .= $this->quoteColumnName($options['primary_key']);
             } elseif (is_array($options['primary_key'])) { // handle primary_key => array('tag_id', 'resource_id')
