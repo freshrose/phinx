@@ -117,6 +117,9 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         if ($options['oracle_version'] === '12.2') {
             return 60;
         }
+        if ($options['oracle_version'] === 'debug') {
+            return 2;
+        }
 
         return 128;
     }
