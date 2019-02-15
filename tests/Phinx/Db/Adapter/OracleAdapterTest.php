@@ -48,7 +48,7 @@ class OracleAdapterTest extends TestCase
      * Test if can connect
      *
      */
-    public function testConnection( ): void
+    public function testConnection(): void
     {
         $this->assertInstanceOf('PDO', $this->adapter->getConnection());
     }
@@ -599,7 +599,6 @@ class OracleAdapterTest extends TestCase
             );
             $table->save();
         }
-
     }
 
     public function testAddForeignKey2() : void
@@ -619,7 +618,6 @@ class OracleAdapterTest extends TestCase
             );
             $table->save();
         }
-
     }
 
     public function testAddForeignKey() : void

@@ -74,9 +74,9 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         if ($this->getUpper()) {
             return strtoupper($string);
         }
+
         return $string;
     }
-
 
     /**
      * @param string $name
@@ -889,6 +889,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             case static::PHINX_TYPE_FLOAT:
                 return ['name' => 'NUMBER'];
             case static::PHINX_TYPE_DOUBLE;
+
                 return ['name' => 'BINARY_DOUBLE'];
 
             // character datatypes
@@ -1342,10 +1343,11 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         ));
         foreach ($rows as $version) {
             if ($this->upper) {
-                $version = array_change_key_case($version,CASE_LOWER);
+                $version = array_change_key_case($version, CASE_LOWER);
             }
             $result[$version['version']] = $version;
         }
+
         return $result;
     }
 

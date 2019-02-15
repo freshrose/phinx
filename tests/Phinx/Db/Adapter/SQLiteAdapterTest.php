@@ -1159,7 +1159,8 @@ OUTPUT;
         $this->assertTrue($this->adapter->hasColumn('table1', 'string_col_2'));
     }
 
-    public function testLiteralSupport() {
+    public function testLiteralSupport()
+    {
         $createQuery = <<<'INPUT'
 CREATE TABLE `test` (`real_col` REAL)
 INPUT;
