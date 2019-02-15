@@ -50,12 +50,9 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
      */
     protected $columnsWithComments = [];
     private $upper = true;
-    const ORACLE_DEFAULT = '12.1';
+    private const ORACLE_DEFAULT = '12.1';
 
-    /**
-     * @return boolean
-     */
-    public function getUpper()
+    public function getUpper() : bool
     {
         return $this->upper;
     }
@@ -69,9 +66,23 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     }
 
     /**
-     * @return string
+     * @param string $string
+     * @return string $string
      */
-    public function getShortName($name)
+    public function checkUpper($string) : string
+    {
+        if ($this->getUpper()) {
+            return strtoupper($string);
+        }
+        return $string;
+    }
+
+
+    /**
+     * @param string $name
+     * @return string $name
+     */
+    public function getShortName($name) : string
     {
         if (strlen($name) > $this->getVersionLimit()) {
             $tableNameArray = explode('_', $name);
@@ -92,9 +103,9 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     }
 
     /**
-     * @return string
+     * @return int
      */
-    public function getVersionLimit()
+    public function getVersionLimit() : int
     {
         $options = $this->getOptions();
         if (!isset($options['oracle_version'])) {
@@ -113,7 +124,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     /**
      * {@inheritdoc}
      */
-    public function connect()
+    public function connect() : void
     {
         if ($this->connection === null) {
             if (!extension_loaded('oci8')) {
@@ -146,7 +157,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     /**
      * {@inheritdoc}
      */
-    public function getDecoratedConnection()
+    public function getDecoratedConnection() : void
     {
         //@TODO : build CakePHP oracleAdapter
     }
@@ -154,15 +165,16 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     /**
      * {@inheritdoc}
      */
-    public function disconnect()
+    public function disconnect() : void
     {
         $this->connection = null;
     }
 
     /**
      * {@inheritdoc}
+     * @return bool
      */
-    public function hasTransactions()
+    public function hasTransactions() : bool
     {
         return true;
     }
@@ -170,16 +182,15 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     /**
      * {@inheritdoc}
      */
-    public function beginTransaction()
+    public function beginTransaction() : void
     {
-        // Oracle transactions starts automatically while SQL query executes
-        //$this->execute('BEGIN');
+        $this->execute('SET TRANSACTION');
     }
 
     /**
      * {@inheritdoc}
      */
-    public function commitTransaction()
+    public function commitTransaction() : void
     {
         // make transactions permanent
         $this->execute('COMMIT');
@@ -188,7 +199,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     /**
      * {@inheritdoc}
      */
-    public function rollbackTransaction()
+    public function rollbackTransaction() : void
     {
         // undo whole transactions
         $this->execute('ROLLBACK');
@@ -202,7 +213,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
      */
     public function quoteSchemaName($schemaName)
     {
-        return $this->upper ? strtoupper($this->quoteColumnName($schemaName)) : $this->quoteColumnName($schemaName);
+        return $this->checkUpper($this->quoteColumnName($schemaName));
     }
 
     /**
@@ -220,7 +231,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             $result = $this->quoteSchemaName($parts['schema']) . '.' . $this->quoteTableName($parts['table']);
         }
 
-        return $this->upper ? strtoupper($result) : $result;
+        return $this->checkUpper($result);
     }
 
     /**
@@ -230,7 +241,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
      */
     public function quoteTableName($tableName)
     {
-        return $this->upper ? strtoupper($this->quoteColumnName($tableName)) : $this->quoteColumnName($tableName);
+        return $this->checkUpper($this->quoteColumnName($tableName));
     }
 
     /**
@@ -240,7 +251,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
      */
     public function quoteColumnName($columnName)
     {
-        return $this->upper ? strtoupper('"' .  $columnName . '"') : '"' .  $columnName . '"';
+        return $this->checkUpper('"' .  $columnName . '"');
     }
 
     /**
@@ -250,7 +261,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
      */
     public function quoteIndexName($columnName)
     {
-        return $this->upper ? strtoupper("'" .  $columnName . "'") : "'" .  $columnName . "'";
+        return $this->checkUpper("'" .  $columnName . "'");
     }
 
     /**
@@ -420,7 +431,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $columns = [];
         $sql = sprintf(
             "select TABLE_NAME \"table_name\", COLUMN_NAME \"name\", DATA_TYPE \"type\", NULLABLE \"null\", 
-            DATA_DEFAULT \"default\", DATA_LENGTH \"char_length\", DATA_PRECISION \"precision\", DATA_SCALE \"scale\", 
+            DATA_DEFAULT \"default\", DATA_LENGTH \"char_length\", DATA_PRECISION \"limit\", DATA_SCALE \"scale\", 
             COLUMN_ID \"ordinal_position\" FROM ALL_TAB_COLUMNS WHERE owner || table_name = '%s'",
             $schemaTableName
         );
@@ -433,7 +444,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             }
             $column = new Column();
             $column->setName($columnInfo['name'])
-                ->setType($this->getPhinxType($columnInfo['type'], $columnInfo['precision'], $columnInfo['scale']))
+                ->setType($this->getPhinxType($columnInfo['type'], $columnInfo['limit'], $columnInfo['scale']))
                 ->setNull($columnInfo['null'] !== 'N')
                 ->setDefault($default)
                 ->setComment($this->getColumnComment($columnInfo['table_name'], $columnInfo['name']));
@@ -460,7 +471,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $schemaTableName = $parts['schema'] . $parts['table'];
         $sql = sprintf(
             "select COMMENTS from ALL_COL_COMMENTS WHERE COLUMN_NAME = '%s' and OWNER || TABLE_NAME = '%s'",
-            $this->upper ? strtoupper($columnName) : $columnName,
+            $this->checkUpper($columnName),
             $schemaTableName
         );
         $row = $this->fetchRow($sql);
@@ -478,7 +489,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $result = $this->fetchRow(sprintf(
             "SELECT count(*) as count FROM ALL_TAB_COLUMNS WHERE owner || table_name = '%s' and column_name = '%s'",
             $schemaTableName,
-            $this->upper ? strtoupper($columnName) : $columnName
+            $this->checkUpper($columnName)
         ));
 
         return $result['COUNT'] > 0;
@@ -486,7 +497,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     public function isNotNullColumn($tableName, $columnName)
     {
         $parts = $this->getSchemaName($tableName);
-        $parts['column'] = $this->upper ? strtoupper($columnName) : $columnName;
+        $parts['column'] = $this->checkUpper($columnName);
         $schemaTableColumnName = $parts['schema'] . $parts['table'] . $parts['column'];
         $result = $this->fetchRow(sprintf(
             "select count(*) as count FROM ALL_TAB_COLUMNS WHERE owner || table_name || column_name= '%s' and nullable = 'N'",
@@ -650,7 +661,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
      */
     public function hasIndexByName($tableName, $indexName)
     {
-        $indexName = $this->upper ? strtoupper($indexName) : $indexName;
+        $indexName = $this->checkUpper($indexName);
         $indexes = $this->getIndexes($tableName);
         foreach ($indexes as $name => $index) {
             if ($name === $indexName) {
@@ -863,19 +874,19 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
 
             // numeric datatypes
             case static::PHINX_TYPE_BOOLEAN:
-                return ['name' => 'NUMBER', 'precision' => 5, 'scale' => 0];
+                return ['name' => 'NUMBER', 'limit' => 5, 'scale' => 0];
             case static::PHINX_TYPE_SMALL_INTEGER:
-                return ['name' => 'NUMBER', 'precision' => 6, 'scale' => 0];
+                return ['name' => 'NUMBER', 'limit' => 6, 'scale' => 0];
             case static::PHINX_TYPE_INTEGER:
-                return ['name' => 'NUMBER', 'precision' => 11, 'scale' => 0];
+                return ['name' => 'NUMBER', 'limit' => 11, 'scale' => 0];
             case static::PHINX_TYPE_DECIMAL:
-                return ['name' => 'NUMBER', 'precision' => 18, 'scale' => 0];
+                return ['name' => 'NUMBER', 'limit' => 18, 'scale' => 0];
             case static::PHINX_TYPE_BIG_INTEGER:
-                return ['name' => 'NUMBER', 'precision' => 24, 'scale' => 0];
+                return ['name' => 'NUMBER', 'limit' => 24, 'scale' => 0];
             case static::PHINX_TYPE_FLOAT:
                 return ['name' => 'NUMBER'];
             case static::PHINX_TYPE_DOUBLE;
-                return ['name' => 'NUMBER'];
+                return ['name' => 'BINARY_DOUBLE'];
 
             // character datatypes
             case static::PHINX_TYPE_TEXT:
@@ -883,7 +894,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             case static::PHINX_TYPE_STRING:
                 return ['name' => 'VARCHAR2', 'limit' => '2000 CHAR'];
             case static::PHINX_TYPE_UUID:
-                return ['name' => 'RAW', 'precision' => 16, 'scale' => 0];
+                return ['name' => 'RAW', 'limit' => 16, 'scale' => 0];
             case static::PHINX_TYPE_CHAR:
                 return ['name' => 'CHAR', 'limit' => 255];
 
@@ -924,15 +935,15 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
      * Returns Phinx type by SQL type
      *
      * @param string $sqlType SQL Type definition
-     * @param int $precision Precision of NUMBER type to define Phinx Type.
+     * @param int $limit limit of NUMBER type to define Phinx Type.
      * @param int $scale Scale of NUMBER type to define Phinx Type.
      * @throws \RuntimeException
      * @param string $sqlType SQL type
      * @returns string Phinx type
      */
-    public function getPhinxType($sqlType, $precision = null, $scale = null)
+    public function getPhinxType($sqlType, $limit = null, $scale = null)
     {
-        $precision = (int)$precision;
+        $limit = (int)$limit;
         $scale = (int)$scale;
 
         if ($sqlType === 'VARCHAR2') {
@@ -941,18 +952,20 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             return static::PHINX_TYPE_CHAR;
         } elseif ($sqlType == 'LONG') {
             return static::PHINX_TYPE_TEXT;
-        } elseif ($sqlType === 'NUMBER' && $precision === 5 && $scale === 0) {
+        } elseif ($sqlType === 'NUMBER' && $limit === 5 && $scale === 0) {
             return static::PHINX_TYPE_BOOLEAN;
-        } elseif ($sqlType === 'NUMBER' && $precision === 6 && $scale === 0) {
+        } elseif ($sqlType === 'NUMBER' && $limit === 6 && $scale === 0) {
             return static::PHINX_TYPE_SMALL_INTEGER;
-        } elseif ($sqlType === 'NUMBER' && $precision === 11 && $scale === 0) {
+        } elseif ($sqlType === 'NUMBER' && $limit === 11 && $scale === 0) {
             return static::PHINX_TYPE_INTEGER;
-        } elseif ($sqlType === 'NUMBER' && $precision === 18 && $scale === 0) {
+        } elseif ($sqlType === 'NUMBER' && $limit === 18 && $scale === 0) {
             return static::PHINX_TYPE_DECIMAL;
-        } elseif ($sqlType === 'NUMBER' && $precision === 24 && $scale === 0) {
+        } elseif ($sqlType === 'NUMBER' && $limit === 24 && $scale === 0) {
             return static::PHINX_TYPE_BIG_INTEGER;
         } elseif ($sqlType === 'NUMBER') {
             return static::PHINX_TYPE_FLOAT;
+        } elseif ($sqlType === 'BINARY_DOUBLE') {
+            return static::PHINX_TYPE_DOUBLE;
         } elseif ($sqlType === 'TIMESTAMP') {
             return static::PHINX_TYPE_TIMESTAMP;
         } elseif ($sqlType === 'TIMESTAMP(6)') {
@@ -963,7 +976,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             return static::PHINX_TYPE_INTERVAL;
         } elseif ($sqlType === 'BLOB') {
             return static::PHINX_TYPE_BLOB;
-        } elseif ($sqlType === 'RAW' && $precision === 16 && $scale === 0) {
+        } elseif ($sqlType === 'RAW' && $limit === 16 && $scale === 0) {
             return static::PHINX_TYPE_UUID;
         } elseif ($sqlType === 'RAW') {
             return static::PHINX_TYPE_BLOB;
@@ -1032,6 +1045,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $buffer = [];
         $sqlType = $this->getSqlType($column->getType());
         $buffer[] = strtoupper($sqlType['name']);
+        /*
         // integers cant have limits in Oracle
         $noLimits = [
             static::PHINX_TYPE_INTEGER,
@@ -1044,11 +1058,11 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         if (!in_array($column->getType(), $noLimits) && ($column->getLimit() || isset($sqlType['limit']))) {
             $buffer[] = sprintf('(%s)', $column->getLimit() ?: $sqlType['limit']);
         }
-
+        */
         // TODO check isset or NULL
-        if ($column->getPrecision() !== null || isset($sqlType['precision'])) {
+        if ($column->getLimit() !== null || isset($sqlType['limit'])) {
             $buffer[] = '(';
-            $buffer[] = $column->getPrecision() ?: $sqlType['precision'];
+            $buffer[] = $column->getLimit() ?: $sqlType['limit'];
             if ($column->getScale() !== null || isset($sqlType['scale'])) {
                 $buffer[] =  ',';
                 $buffer[] = $column->getScale() ?: $sqlType['scale'];
@@ -1276,8 +1290,8 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         }
 
         return [
-            'schema' => $this->upper ? strtoupper($schema) : $schema,
-            'table' => $this->upper ? strtoupper($table) : $table,
+            'schema' => $this->checkUpper($schema),
+            'table' => $this->checkUpper($table),
         ];
     }
 
@@ -1321,7 +1335,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         $rows = $this->fetchAll(sprintf(
             'SELECT * FROM %s ORDER BY %s',
             $this->quoteSchemaTableName($this->getSchemaTableName()),
-            $this->upper ? strtoupper($orderBy) : $orderBy
+            $this->checkUpper($orderBy)
         ));
         foreach ($rows as $version) {
             $result[$this->upper ? $version['VERSION'] : $version['version']] = $version;
@@ -1376,7 +1390,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     /**
      * {@inheritdoc}
      */
-    public function bulkinsert(Table $table, $rows)
+    public function bulkinsert(Table $table, $rows) : void
     {
         foreach ($rows as $row) {
             $this->insert($table, $row);
@@ -1420,5 +1434,37 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         }
 
         return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function hasPrimaryKey($tableName, $columns, $constraint = null)
+    {
+        // TODO
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getPrimaryKey($tableName, $columns, $constraint = null)
+    {
+        // TODO
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getChangePrimaryKeyInstructions(Table $table, $newColumns)
+    {
+        // TODO
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getChangeCommentInstructions(Table $table, $newComment)
+    {
+        // TODO
     }
 }

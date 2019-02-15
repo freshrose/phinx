@@ -16,9 +16,8 @@ class OracleAdapterTest extends TestCase
     /**
      * Set up a new object
      *
-     * @return null
      */
-    public function setUp()
+    public function setUp() : void
     {
         if (!TESTS_PHINX_DB_ADAPTER_ORACLE_ENABLED) {
             $this->markTestSkipped('Oracle tests disabled. See TESTS_PHINX_DB_ADAPTER_ORACLE_ENABLED constant.');
@@ -39,9 +38,8 @@ class OracleAdapterTest extends TestCase
     /**
      * Test if it is a valid object
      *
-     * @return null
      */
-    public function testObject()
+    public function testObject() : void
     {
         $this->assertNotNull($this->adapter);
     }
@@ -49,9 +47,8 @@ class OracleAdapterTest extends TestCase
     /**
      * Test if can connect
      *
-     * @return null
      */
-    public function testConnection()
+    public function testConnection( ): void
     {
         $this->assertInstanceOf('PDO', $this->adapter->getConnection());
     }
@@ -59,9 +56,8 @@ class OracleAdapterTest extends TestCase
     /**
      * Tear Down
      *
-     * @return null
      */
-    public function tearDown()
+    public function tearDown() : void
     {
         unset($this->adapter);
     }
@@ -69,9 +65,8 @@ class OracleAdapterTest extends TestCase
     /**
      * Test if can connect without port
      *
-     * @return null
      */
-    public function testConnectionWithoutPort()
+    public function testConnectionWithoutPort() : void
     {
         $options = $this->adapter->getOptions();
         unset($options['port']);
@@ -82,9 +77,8 @@ class OracleAdapterTest extends TestCase
     /**
      * Test if cannot connect without Invalid Credentials
      *
-     * @return null
      */
-    public function testConnectionWithInvalidCredentials()
+    public function testConnectionWithInvalidCredentials() : void
     {
         $options = [
             'host' => TESTS_PHINX_DB_ADAPTER_ORACLE_HOST,
@@ -108,7 +102,7 @@ class OracleAdapterTest extends TestCase
         }
     }
 
-    public function testGetUpper()
+    public function testGetUpper() : void
     {
         $this->assertTrue($this->adapter->getUpper());
     }
@@ -116,29 +110,29 @@ class OracleAdapterTest extends TestCase
     public function testQuoteSchemaName()
     {
         $this->assertEquals(
-            $this->adapter->getUpper() ? strtoupper('"test_table"') : '"test_table"',
+            $this->adapter->checkUpper('"test_table"'),
             $this->adapter->quoteSchemaName('test_table')
         );
     }
 
-    public function testQuoteSchemaTableName()
+    public function testQuoteSchemaTableName() : void
     {
         $this->assertEquals(
-            $this->adapter->getUpper() ? strtoupper('"test_schema"."test_table"') : '"test_schema"."test_table"',
+            $this->adapter->checkUpper('"test_schema"."test_table"'),
             $this->adapter->quoteSchemaTableName('test_schema.test_table')
         );
 
-        $this->assertEquals($this->adapter->getUpper() ? strtoupper('"test_table"') : '"test_table"', $this->adapter->quoteSchemaTableName('.test_table'));
+        $this->assertEquals($this->adapter->checkUpper('"test_table"'), $this->adapter->quoteSchemaTableName('.test_table'));
 
         $options = $this->adapter->getOptions();
         $options['schema'] = 'test_default_schema';
         $this->adapter->setOptions($options);
-        $this->assertEquals($this->adapter->getUpper() ? strtoupper('"test_default_schema"."test_table"') : '"test_default_schema"."test_table"', $this->adapter->quoteSchemaTableName('test_table'));
+        $this->assertEquals($this->adapter->checkUpper('"test_default_schema"."test_table"'), $this->adapter->quoteSchemaTableName('test_table'));
     }
 
-    public function testQuoteTableName()
+    public function testQuoteTableName() : void
     {
-        $this->assertEquals($this->adapter->getUpper() ? strtoupper('"test_table"') : '"test_table"', $this->adapter->quoteTableName('test_table'));
+        $this->assertEquals($this->adapter->checkUpper('"test_table"'), $this->adapter->quoteTableName('test_table'));
     }
 
     public function testHasTable()
@@ -146,12 +140,14 @@ class OracleAdapterTest extends TestCase
         $this->assertTrue($this->adapter->hasTable('phinxlog'));
     }
 
-    public function testQuoteColumnName()
+    public function testQuoteColumnName() : void
     {
-        $this->assertEquals($this->adapter->getUpper() ? strtoupper('"test_column"') : '"test_column"', $this->adapter->quoteColumnName('test_column'));
+        $this->assertEquals($this->adapter->checkUpper('"test_column"'), $this->adapter->quoteColumnName('test_column'));
     }
 /*
-    public function testCreatingTheSchemaTableOnConnect()
+ * We do not want to remove PHINXLOG table during testing on real databaze with migrations
+ *
+    public function testCreatingTheSchemaTableOnConnect() : void
     {
         $this->adapter->connect();
         $this->assertTrue($this->adapter->hasTable($this->adapter->getSchemaTableName()));
@@ -163,14 +159,14 @@ class OracleAdapterTest extends TestCase
         $this->adapter->dropTable($this->adapter->getSchemaTableName());
     }
 */
-    public function testSchemaTableIsCreatedWithPrimaryKey()
+    public function testSchemaTableIsCreatedWithPrimaryKey() : void
     {
         $this->adapter->connect();
         $this->assertTrue($this->adapter->hasIndex($this->adapter->getSchemaTableName(), $this->adapter->getUpper() ? ['VERSION'] : ['version']));
         $this->adapter->disconnect();
     }
 
-    public function testCreatingIdentityTableWithDefaultID()
+    public function testCreatingIdentityTableWithDefaultID() : void
     {
         // default UID is set to "UID" based on FreshFlow requirements
         $table = new \Phinx\Db\Table('identity_table_dtest', [], $this->adapter);
@@ -184,7 +180,7 @@ class OracleAdapterTest extends TestCase
         $this->assertFalse($this->adapter->hasTable('identity_table_dtest'));
     }
 
-    public function testCreatingIdentityTableWithCustomID()
+    public function testCreatingIdentityTableWithCustomID() : void
     {
         $options = $this->adapter->getOptions();
         $options['id'] = 'UberID';
@@ -199,7 +195,7 @@ class OracleAdapterTest extends TestCase
         $this->assertFalse($this->adapter->hasTable('identity_table_ctest'));
     }
 
-    public function testCreateTable()
+    public function testCreateTable() : void
     {
         $table = new \Phinx\Db\Table('NTABLE', [], $this->adapter);
         $table->addColumn('realname', 'string')
@@ -213,7 +209,7 @@ class OracleAdapterTest extends TestCase
         $this->adapter->dropTable('NTABLE');
     }
 
-    public function testCreateTableLower()
+    public function testCreateTableLower() : void
     {
         $this->adapter->setUpper(false);
         $table = new \Phinx\Db\Table('t', [], $this->adapter);
@@ -230,7 +226,7 @@ class OracleAdapterTest extends TestCase
         $this->adapter->setUpper(true);
     }
 
-    public function testTableWithoutIndexesByName()
+    public function testTableWithoutIndexesByName() : void
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
         $table->addColumn('EMAIL', 'string')
@@ -238,7 +234,7 @@ class OracleAdapterTest extends TestCase
         $this->assertFalse($this->adapter->hasIndexByName('TABLE1', strtoupper('MYEMAILINDEX')));
         $this->adapter->dropTable('TABLE1');
     }
-    public function testRenameTable()
+    public function testRenameTable() : void
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
         $table->save();
@@ -249,7 +245,7 @@ class OracleAdapterTest extends TestCase
         $this->assertTrue($this->adapter->hasTable('TABLE2'));
         $this->adapter->dropTable('TABLE2');
     }
-    public function testAddColumn()
+    public function testAddColumn() : void
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
         $table->save();
@@ -259,7 +255,7 @@ class OracleAdapterTest extends TestCase
         $this->assertTrue($table->hasColumn('email'));
         $this->adapter->dropTable('TABLE1');
     }
-    public function testAddColumnWithDefaultValue()
+    public function testAddColumnWithDefaultValue() : void
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
         $table->save();
@@ -267,13 +263,13 @@ class OracleAdapterTest extends TestCase
             ->save();
         $columns = $this->adapter->getColumns('TABLE1');
         foreach ($columns as $column) {
-            if ($column->getName() == ($this->adapter->getUpper() ? strtoupper('default_value') : 'default_value')) {
+            if ($column->getName() == ($this->adapter->checkUpper('default_value'))) {
                 $this->assertEquals("'test'", trim($column->getDefault()));
             }
         }
         $this->adapter->dropTable('TABLE1');
     }
-    public function testAddColumnWithDefaultZero()
+    public function testAddColumnWithDefaultZero() : void
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
         $table->save();
@@ -281,14 +277,14 @@ class OracleAdapterTest extends TestCase
             ->save();
         $columns = $this->adapter->getColumns('TABLE1');
         foreach ($columns as $column) {
-            if ($column->getName() == ($this->adapter->getUpper() ? strtoupper('default_zero') : 'default_zero')) {
+            if ($column->getName() == ($this->adapter->checkUpper('default_zero'))) {
                 $this->assertNotNull($column->getDefault());
                 $this->assertEquals('0', trim($column->getDefault()));
             }
         }
         $this->adapter->dropTable('TABLE1');
     }
-    public function testAddColumnWithDefaultNull()
+    public function testAddColumnWithDefaultNull() : void
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
         $table->save();
@@ -296,20 +292,20 @@ class OracleAdapterTest extends TestCase
             ->save();
         $columns = $this->adapter->getColumns('TABLE1');
         foreach ($columns as $column) {
-            if ($column->getName() == ($this->adapter->getUpper() ? strtoupper('default_null') : 'default_null')) {
+            if ($column->getName() == ($this->adapter->checkUpper('default_null'))) {
                 $this->assertEquals('', trim($column->getDefault()));
             }
         }
         $this->adapter->dropTable('TABLE1');
     }
-    public function testAddColumnWithDefaultOnNull()
+    public function testAddColumnWithDefaultOnNull() : void
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
         $table->addColumn('default_on_null', 'string', ['null' => false, 'default' => 'test', 'defaultOnNull' => true])
             ->save();
         $columns = $this->adapter->getColumns('TABLE1');
         foreach ($columns as $column) {
-            if ($column->getName() == ($this->adapter->getUpper() ? strtoupper('default_on_null') : 'default_on_null')) {
+            if ($column->getName() == ($this->adapter->checkUpper('default_on_null'))) {
                 $this->assertNotNull($column->getDefault());
             }
         }
@@ -332,7 +328,7 @@ class OracleAdapterTest extends TestCase
         $this->adapter->dropTable('TABLE1');
     }
 
-    public function testAddColumnWithDefaultBool()
+    public function testAddColumnWithDefaultBool() : void
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
         $table->save();
@@ -342,16 +338,16 @@ class OracleAdapterTest extends TestCase
             ->save();
         $columns = $this->adapter->getColumns('TABLE1');
         foreach ($columns as $column) {
-            if ($column->getName() == ($this->adapter->getUpper() ? strtoupper('default_false') : 'default_false')) {
+            if ($column->getName() == ($this->adapter->checkUpper('default_false'))) {
                 $this->assertSame(0, (int)trim($column->getDefault()));
             }
-            if ($column->getName() == ($this->adapter->getUpper() ? strtoupper('default_true') : 'default_true')) {
+            if ($column->getName() == ($this->adapter->checkUpper('default_true'))) {
                 $this->assertSame(1, (int)trim($column->getDefault()));
             }
         }
         $this->adapter->dropTable('TABLE1');
     }
-    public function testRenameColumn()
+    public function testRenameColumn() : void
     {
         $table = new \Phinx\Db\Table('T', [], $this->adapter);
         $table->addColumn('column1', 'string')
@@ -363,7 +359,7 @@ class OracleAdapterTest extends TestCase
         $this->assertTrue($this->adapter->hasColumn('T', 'column2'));
         $this->adapter->dropTable('T');
     }
-    public function testRenamingANonExistentColumn()
+    public function testRenamingANonExistentColumn() : void
     {
         $table = new \Phinx\Db\Table('T', [], $this->adapter);
         $table->addColumn('column1', 'string')
@@ -381,7 +377,7 @@ class OracleAdapterTest extends TestCase
         }
         $this->adapter->dropTable('T');
     }
-    public function testChangeColumnDefaults()
+    public function testChangeColumnDefaults() : void
     {
         $table = new \Phinx\Db\Table('T', [], $this->adapter);
         $table->addColumn('column1', 'string', ['default' => 'test'])
@@ -399,7 +395,7 @@ class OracleAdapterTest extends TestCase
         $this->assertSame("'another test'", trim($this->adapter->getUpper() ? $columns['COLUMN1']->getDefault() : $columns['column1']->getDefault()));
         $this->adapter->dropTable('T');
     }
-    public function testChangeColumnDefaultToNull()
+    public function testChangeColumnDefaultToNull() : void
     {
         $table = new \Phinx\Db\Table('T', [], $this->adapter);
         $table->addColumn('column1', 'string', ['null' => false, 'default' => 'test'])
@@ -414,7 +410,7 @@ class OracleAdapterTest extends TestCase
         $this->adapter->dropTable('T');
         $this->assertNull($this->adapter->getUpper() ? $columns['COLUMN1']->getDefault() : $columns['column1']->getDefault());
     }
-    public function testChangeColumnDefaultToZero()
+    public function testChangeColumnDefaultToZero() : void
     {
         $table = new \Phinx\Db\Table('T', [], $this->adapter);
         $table->addColumn('column1', 'integer')
@@ -428,7 +424,7 @@ class OracleAdapterTest extends TestCase
         $this->adapter->dropTable('T');
         $this->assertSame(0, $this->adapter->getUpper() ? (int)$columns['COLUMN1']->getDefault() : (int)$columns['column1']->getDefault());
     }
-    public function testDropColumn()
+    public function testDropColumn() : void
     {
         $table = new \Phinx\Db\Table('T', [], $this->adapter);
         $table->addColumn('column1', 'string')
@@ -456,16 +452,16 @@ class OracleAdapterTest extends TestCase
         ];
     }
 
-    public function returnTypes()
+    public function returnTypes() : void
     {
     }
 
     /**
      * @dataProvider columnsProvider
      */
-    public function testGetColumns($colName, $type, array $options)
+    public function testGetColumns($colName, $type, array $options) : void
     {
-        $colName = $this->adapter->getUpper() ? strtoupper($colName) : $colName;
+        $colName = $this->adapter->checkUpper($colName);
 
         $table = new \Phinx\Db\Table('T', [], $this->adapter);
         $table->addColumn($colName, $type, $options)->save();
@@ -476,7 +472,7 @@ class OracleAdapterTest extends TestCase
 
         $this->assertNull($this->adapter->getUpper() ? $columns['COLUMN1']->getDefault() : $columns['column1']->getDefault());
     }
-    public function testAddIndex()
+    public function testAddIndex() : void
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
         $table->addColumn('EMAIL', 'string')
@@ -487,7 +483,7 @@ class OracleAdapterTest extends TestCase
         $this->assertTrue($table->hasIndex('EMAIL'));
         $this->adapter->dropTable('TABLE1');
     }
-    public function testGetIndexes()
+    public function testGetIndexes() : void
     {
         // single column index
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
@@ -503,7 +499,7 @@ class OracleAdapterTest extends TestCase
         $this->assertTrue($table->hasIndex(['EMAIL', 'USERNAME']));
         $this->adapter->dropTable('TABLE1');
     }
-    public function testDropIndex()
+    public function testDropIndex() : void
     {
         // single column index
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
@@ -544,7 +540,7 @@ class OracleAdapterTest extends TestCase
         $this->adapter->dropTable('TABLE3');
         $this->adapter->dropTable('TABLE4');
     }
-    public function testDropIndexByName()
+    public function testDropIndexByName() : void
     {
         // single column index
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
@@ -570,7 +566,7 @@ class OracleAdapterTest extends TestCase
         $this->adapter->dropTable('TABLE2');
     }
 
-    public function testAddForeignKey1()
+    public function testAddForeignKey1() : void
     {
         $table = new \Phinx\Db\Table('f_events', [], $this->adapter);
 
@@ -590,7 +586,7 @@ class OracleAdapterTest extends TestCase
         $table->save();
     }
 
-    public function testAddForeignKey2()
+    public function testAddForeignKey2() : void
     {
         $table =  new \Phinx\Db\Table('f_events', [], $this->adapter);
 
@@ -610,7 +606,7 @@ class OracleAdapterTest extends TestCase
         $table->save();
     }
 
-    public function testAddForeignKey()
+    public function testAddForeignKey() : void
     {
         $refTable = new \Phinx\Db\Table('ref_table', [], $this->adapter);
         $refTable->addColumn('field1', 'string')->save();
@@ -624,7 +620,7 @@ class OracleAdapterTest extends TestCase
         $this->adapter->dropTable('table');
         $this->adapter->dropTable('ref_table');
     }
-    public function testDropForeignKey()
+    public function testDropForeignKey() : void
     {
         $refTable = new \Phinx\Db\Table('ref_table', [], $this->adapter);
         $refTable->addColumn('field1', 'string')->save();
@@ -639,7 +635,7 @@ class OracleAdapterTest extends TestCase
         $this->adapter->dropTable('table');
         $this->adapter->dropTable('ref_table');
     }
-    public function testStringDropForeignKey()
+    public function testStringDropForeignKey() : void
     {
         $refTable = new \Phinx\Db\Table('ref_table', [], $this->adapter);
         $refTable->addColumn('field1', 'string')->save();
@@ -658,7 +654,7 @@ class OracleAdapterTest extends TestCase
      * @expectedException \RuntimeException
      * @expectedExceptionMessage The type: "idontexist" is not supported
      */
-    public function testInvalidSqlType()
+    public function testInvalidSqlType() : void
     {
         $this->adapter->getSqlType('idontexist');
     }
@@ -676,7 +672,7 @@ class OracleAdapterTest extends TestCase
             $this->adapter->getSqlType('uuid')
         );
     }
-    public function testGetPhinxType()
+    public function testGetPhinxType() : void
     {
         $this->assertEquals('integer', $this->adapter->getPhinxType('NUMBER', 11));
         $this->assertEquals('biginteger', $this->adapter->getPhinxType('NUMBER', 20));
@@ -690,7 +686,7 @@ class OracleAdapterTest extends TestCase
         $this->assertEquals('date', $this->adapter->getPhinxType('DATE'));
         $this->assertEquals('blob', $this->adapter->getPhinxType('BLOB'));
     }
-    public function testAddColumnComment()
+    public function testAddColumnComment() : void
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
         $table->addColumn('field1', 'string', ['comment' => $comment = 'Comments from column "field1"'])
@@ -702,7 +698,7 @@ class OracleAdapterTest extends TestCase
     /**
      * @depends testAddColumnComment
      */
-    public function testGetColumnCommentEmptyReturn()
+    public function testGetColumnCommentEmptyReturn() : void
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
         $table->addColumn('field1', 'string', ['comment' => ''])
@@ -714,7 +710,7 @@ class OracleAdapterTest extends TestCase
     /**
      * @depends testAddColumnComment
      */
-    public function testChangeColumnComment()
+    public function testChangeColumnComment() : void
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
         $table->addColumn('field1', 'string', ['comment' => 'Comments from column "field1"'])
@@ -728,7 +724,7 @@ class OracleAdapterTest extends TestCase
     /**
      * @depends testAddColumnComment
      */
-    public function testRemoveColumnComment()
+    public function testRemoveColumnComment() : void
     {
         $table = new \Phinx\Db\Table('TABLE1', [], $this->adapter);
         $table->addColumn('field1', 'string', ['comment' => 'Comments from column "field1"'])
@@ -742,7 +738,7 @@ class OracleAdapterTest extends TestCase
     /**
      * Test that column names are properly escaped when creating Foreign Keys
      */
-    public function testForignKeysArePropertlyEscaped()
+    public function testForignKeysArePropertlyEscaped() : void
     {
         $userId = 'USER123';
         $sessionId = 'SESSION123';
@@ -763,7 +759,7 @@ class OracleAdapterTest extends TestCase
     /**
      * Test that column names are properly escaped when creating Foreign Keys
      */
-    public function testDontHasForeignKey()
+    public function testDontHasForeignKey() : void
     {
         $userId = 'USER123';
         $sessionId = 'SESSION123';
@@ -782,7 +778,7 @@ class OracleAdapterTest extends TestCase
         $this->adapter->dropTable('USERS');
     }
 
-    public function testBulkInsertData()
+    public function testBulkInsertData() : void
     {
         $data = [
             [
@@ -811,16 +807,5 @@ class OracleAdapterTest extends TestCase
             ->addColumn('column4', 'timestamp', ['default' => '2018-05-05 15:23:00'])
             ->insert($data)
             ->save();
-/*
-        $rows = $this->adapter->fetchAll('SELECT * FROM table1');
-        $this->assertEquals('value1', $rows[0]['column1']);
-        $this->assertEquals('value2', $rows[1]['column1']);
-        $this->assertEquals('value3', $rows[2]['column1']);
-        $this->assertEquals(1, $rows[0]['column2']);
-        $this->assertEquals(2, $rows[1]['column2']);
-        $this->assertEquals(3, $rows[2]['column2']);
-        $this->assertEquals('test', $rows[0]['column3']);
-        $this->assertEquals('test', $rows[2]['column3']);
-*/
     }
 }
