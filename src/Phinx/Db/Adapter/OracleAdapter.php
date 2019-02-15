@@ -1341,9 +1341,11 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             $this->checkUpper($orderBy)
         ));
         foreach ($rows as $version) {
-            $result[$this->upper ? $version['VERSION'] : $version['version']] = $version;
+            if ($this->upper) {
+                $version = array_change_key_case($version,CASE_LOWER);
+            }
+            $result[$version['version']] = $version;
         }
-
         return $result;
     }
 
