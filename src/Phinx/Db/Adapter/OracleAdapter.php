@@ -1303,7 +1303,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
     public function getVersionLog()
     {
         $result = [];
-//TODO = Show names instead 0 and show dates to.
+        //TODO = Show names instead 0 and show dates to.
         switch ($this->options['version_order']) {
             case \Phinx\Config\Config::VERSION_ORDER_CREATION_TIME:
                 $orderBy = '"version" ASC';
@@ -1318,7 +1318,8 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
             $this->quoteSchemaTableName($this->getSchemaTableName()),
             $this->upper ? strtoupper($orderBy) : $orderBy));
         foreach ($rows as $version) {
-            $result[$this->upper ? $version['VERSION'] : $version['version']] = $version;
+            $version = array_change_key_case($version,CASE_LOWER);
+            $result[$version['version']] = $version;
         }
 
         return $result;

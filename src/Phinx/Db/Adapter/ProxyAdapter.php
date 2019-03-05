@@ -121,10 +121,15 @@ class ProxyAdapter extends AdapterWrapper
                     break;
 
                 default:
+                    // ignore changeColumn and others
+                    break;
+
+                    /*
                     throw new IrreversibleMigrationException(sprintf(
                         'Cannot reverse a "%s" command',
                         get_class($com)
                     ));
+                    */
             }
         }
 
