@@ -187,7 +187,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
      */
     public function beginTransaction() : void
     {
-        $this->execute('SET TRANSACTION');
+        //$this->execute('SET TRANSACTION');
     }
 
     /**
