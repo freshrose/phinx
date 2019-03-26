@@ -121,11 +121,10 @@ class Column
      */
     protected $values;
 
-
     /**
      * @var array
      */
-    protected $options;
+    protected $newOptions = [];
 
     /**
      * Sets the column name.
@@ -147,7 +146,11 @@ class Column
      */
     public function getName()
     {
-        return $this->name;
+        if (isset($this->name)) {
+            return $this->name;
+        }
+
+        return null;
     }
 
     /**
@@ -166,11 +169,15 @@ class Column
     /**
      * Gets the column type.
      *
-     * @return string|\Phinx\Util\Literal
+     * @return string|\Phinx\Util\Literal|null
      */
     public function getType()
     {
-        return $this->type;
+        if (isset($this->type)) {
+            return $this->type;
+        }
+
+        return null;
     }
 
     /**
@@ -189,11 +196,15 @@ class Column
     /**
      * Gets the column limit.
      *
-     * @return int
+     * @return int|null
      */
     public function getLimit()
     {
-        return $this->limit;
+        if (isset($this->limit)) {
+            return $this->limit;
+        }
+
+        return null;
     }
 
     /**
@@ -212,11 +223,15 @@ class Column
     /**
      * Gets whether the column allows nulls.
      *
-     * @return bool
+     * @return bool|null
      */
     public function getNull()
     {
-        return $this->null;
+        if (isset($this->null)) {
+            return $this->null;
+        }
+
+        return null;
     }
 
     /**
@@ -245,11 +260,15 @@ class Column
     /**
      * Gets the default column value.
      *
-     * @return mixed
+     * @return mixed|null
      */
     public function getDefault()
     {
-        return $this->default;
+        if (isset($this->default)) {
+            return $this->default;
+        }
+
+        return null;
     }
 
     /**
@@ -268,11 +287,15 @@ class Column
     /**
      * Gets the default column value.
      *
-     * @return mixed
+     * @return mixed|null
      */
     public function getDefaultOnNull()
     {
-        return $this->defaultOnNull;
+        if (isset($this->defaultOnNull)) {
+            return $this->defaultOnNull;
+        }
+
+        return null;
     }
 
     /**
@@ -291,11 +314,15 @@ class Column
     /**
      * Gets whether or not the column is an identity column.
      *
-     * @return bool
+     * @return bool|null
      */
     public function getIdentity()
     {
-        return $this->identity;
+        if (isset($this->identity)) {
+            return $this->identity;
+        }
+
+        return null;
     }
 
     /**
@@ -324,11 +351,15 @@ class Column
     /**
      * Returns the name of the column to add this column after.
      *
-     * @return string
+     * @return string|null
      */
     public function getAfter()
     {
-        return $this->after;
+        if (isset($this->after)) {
+            return $this->after;
+        }
+
+        return null;
     }
 
     /**
@@ -347,11 +378,15 @@ class Column
     /**
      * Returns the value of the ON UPDATE column function.
      *
-     * @return string
+     * @return string|null
      */
     public function getUpdate()
     {
-        return $this->update;
+        if (isset($this->update)) {
+            return $this->update;
+        }
+
+        return null;
     }
 
     /**
@@ -376,11 +411,15 @@ class Column
      * For example `DECIMAL(5,2)`, 5 is the precision and 2 is the scale,
      * and the column could store value from -999.99 to 999.99.
      *
-     * @return int
+     * @return int|null
      */
     public function getPrecision()
     {
-        return $this->limit;
+        if (isset($this->limit)) {
+            return $this->limit;
+        }
+
+        return null;
     }
 
     /**
@@ -405,11 +444,15 @@ class Column
      * For example `DECIMAL(5,2)`, 5 is the precision and 2 is the scale,
      * and the column could store value from -999.99 to 999.99.
      *
-     * @return int
+     * @return int|null
      */
     public function getScale()
     {
-        return $this->scale;
+        if (isset($this->scale)) {
+            return $this->scale;
+        }
+
+        return null;
     }
 
     /**
@@ -446,11 +489,15 @@ class Column
     /**
      * Gets the column comment.
      *
-     * @return string
+     * @return string|null
      */
     public function getComment()
     {
-        return $this->comment;
+        if (isset($this->comment)) {
+            return $this->comment;
+        }
+
+        return null;
     }
 
     /**
@@ -469,11 +516,15 @@ class Column
     /**
      * Gets whether field should be signed.
      *
-     * @return bool
+     * @return bool|null
      */
     public function getSigned()
     {
-        return $this->signed;
+        if (isset($this->signed)) {
+            return $this->signed;
+        }
+
+        return null;
     }
 
     /**
@@ -503,11 +554,15 @@ class Column
     /**
      * Gets whether field has a timezone identifier.
      *
-     * @return bool
+     * @return bool|null
      */
     public function getTimezone()
     {
-        return $this->timezone;
+        if (isset($this->timezone)) {
+            return $this->timezone;
+        }
+
+        return null;
     }
 
     /**
@@ -537,11 +592,15 @@ class Column
     /**
      * Gets field properties
      *
-     * @return array
+     * @return array|null
      */
     public function getProperties()
     {
-        return $this->properties;
+        if (isset($this->properties)) {
+            return $this->properties;
+        }
+
+        return null;
     }
 
     /**
@@ -564,11 +623,15 @@ class Column
     /**
      * Gets field values
      *
-     * @return array
+     * @return array|null
      */
     public function getValues()
     {
-        return $this->values;
+        if (isset($this->values)) {
+            return $this->values;
+        }
+
+        return null;
     }
 
     /**
@@ -598,11 +661,15 @@ class Column
     /**
      * Gets the column collation.
      *
-     * @return string
+     * @return string|null
      */
     public function getCollation()
     {
-        return $this->collation;
+        if (isset($this->collation)) {
+            return $this->collation;
+        }
+
+        return null;
     }
 
     /**
@@ -632,11 +699,15 @@ class Column
     /**
      * Gets the column character set.
      *
-     * @return string
+     * @return string|null
      */
     public function getEncoding()
     {
-        return $this->encoding;
+        if (isset($this->encoding)) {
+            return $this->encoding;
+        }
+
+        return null;
     }
 
     /**
@@ -686,7 +757,6 @@ class Column
      */
     public function setOptions($options)
     {
-        $this->options = $options;
         $validOptions = $this->getValidOptions();
         $aliasOptions = $this->getAliasedOptions();
 
@@ -707,13 +777,44 @@ class Column
         return $this;
     }
 
-    /**
-     * Gets the column collation.
-     *
-     * @return array
+    /*
+     * @param mixed $columnName The name of the column to change
+     * @param mixed $type The type of the column
+     * @param mixed $options Additional options for the column
      */
-    public function getOptions()
+    public function setNewOptions($columnName, $type, $options)
     {
-        return $this->options;
+        $options = array_merge([
+            'name' => $columnName,
+            'type' => $type
+        ], $options);
+
+        $this->newOptions = $options;
+    }
+
+    /**
+     * Gets the options.
+     *
+     * @return array|null
+     */
+    public function getNewOptions()
+    {
+        if (isset($this->newOptions)) {
+            return $this->newOptions;
+        }
+
+        return null;
+    }
+
+    public function unsetDefaultOptions()
+    {
+        $currentOptions = get_object_vars($this);
+        $newOptions = $this->getNewOptions();
+        $dropOptions = array_diff_ukey($currentOptions, $newOptions, function($cur, $new) {
+            return intval($cur != $new);
+        });
+        foreach($dropOptions as $drop => $value) {
+            unset($this->{$drop});
+        }
     }
 }

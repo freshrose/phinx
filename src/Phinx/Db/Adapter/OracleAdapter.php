@@ -561,6 +561,9 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         if (!(bool)$result) {
             throw new \InvalidArgumentException("The specified column does not exist: $columnName");
         }
+        // unset default configuration
+        $newColumn->unsetDefaultOptions();
+
         $newInstructions = $this->getColumnSqlDefinition($newColumn);
         if ($this->isNotNullColumn($tableName, $columnName)) {
             $newInstructions = str_ireplace(' NOT NULL', '', $newInstructions);
@@ -1022,7 +1025,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
      */
     protected function getDefaultValueDefinition($default, $columnType = null)
     {
-        if (is_string($default) && 'CURRENT_TIMESTAMP' !== $default) {
+        if (is_string($default) && 'CURRENT_TIMESTAMP' !== $default && 'CURRENT_DATE' !== $default) {
             $default = $this->getConnection()->quote($default);
         } elseif (is_bool($default)) {
             $default = $this->castToBool($default);
@@ -1031,7 +1034,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
         }
 
         $timestamp = '';
-        if (in_array($columnType, ['timestamp', 'time', 'date', 'datetime']) && 'CURRENT_TIMESTAMP' !== $default) {
+        if (in_array($columnType, ['timestamp', 'time', 'date', 'datetime']) && 'CURRENT_TIMESTAMP' !== $default && 'CURRENT_DATE' !== $default) {
             $timestamp = strlen($default) === 12 ? 'date ' : 'timestamp ';
         }
 
@@ -1083,10 +1086,13 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
                 } else {
                     $buffer[] = 'DEFAULT ' . $default . ' NOT NULL';
                 }
-            } elseif ($column->isNull()) {
-                $buffer[] = 'NULL';
             } else {
-                $buffer[] = 'NOT NULL';
+                if ($column->isNull()) {
+                    $buffer[] = 'NULL';
+                }
+                if (!$column->isNull()) {
+                    $buffer[] = 'NOT NULL';
+                }
             }
         }
 
