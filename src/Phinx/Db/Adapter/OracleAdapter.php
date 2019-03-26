@@ -1086,7 +1086,7 @@ class OracleAdapter extends PdoAdapter implements AdapterInterface
                 } else {
                     $buffer[] = 'DEFAULT ' . $default . ' NOT NULL';
                 }
-            } else {
+            } elseif ($column->isNull() !== null) {
                 if ($column->isNull()) {
                     $buffer[] = 'NULL';
                 }
