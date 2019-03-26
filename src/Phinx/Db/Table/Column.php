@@ -121,6 +121,12 @@ class Column
      */
     protected $values;
 
+
+    /**
+     * @var array
+     */
+    protected $options;
+
     /**
      * Sets the column name.
      *
@@ -680,6 +686,7 @@ class Column
      */
     public function setOptions($options)
     {
+        $this->options = $options;
         $validOptions = $this->getValidOptions();
         $aliasOptions = $this->getAliasedOptions();
 
@@ -698,5 +705,15 @@ class Column
         }
 
         return $this;
+    }
+
+    /**
+     * Gets the column collation.
+     *
+     * @return array
+     */
+    public function getOptions()
+    {
+        return $this->options;
     }
 }
